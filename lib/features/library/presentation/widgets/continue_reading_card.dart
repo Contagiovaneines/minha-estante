@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/app_chip.dart';
 import '../../../../core/widgets/progress_bar.dart';
+import '../../../reader/domain/ebook_format_support.dart';
 import '../../domain/library_item.dart';
 import 'library_item_cover.dart';
 
@@ -178,6 +179,9 @@ class ContinueReadingCard extends StatelessWidget {
       case ItemType.hq:
         return '/hq/${item.id}';
       case ItemType.ebook:
+        return EbookFormatSupport.canReadInternally(item)
+            ? '/epub/${item.id}'
+            : '/document/${item.id}';
       case ItemType.document:
       case ItemType.text:
         return '/document/${item.id}';

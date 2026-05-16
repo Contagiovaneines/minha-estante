@@ -9,9 +9,9 @@ import '../../library/domain/library_item.dart';
 import '../../library/presentation/library_controller.dart';
 import 'cbr_conversion_page.dart';
 import '../../../core/storage/saf_file_resolver.dart';
+import '../domain/translation_service.dart';
+import 'widgets/translation_overlay.dart';
 
-// ---------------------------------------------------------------------------
-// Versão padrão: busca o item no repositório pelo ID.
 class HqReaderPage extends ConsumerWidget {
   final String itemId;
 
@@ -51,9 +51,6 @@ class HqReaderPage extends ConsumerWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Versão direta: aceita LibraryItem já pronto, sem buscar no repositório.
-// Usada pela CbrConversionPage após converter CBR → CBZ.
 class HqReaderDirectPage extends StatelessWidget {
   final LibraryItem item;
 
@@ -71,8 +68,6 @@ class HqReaderDirectPage extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-
 class _HqReaderView extends ConsumerStatefulWidget {
   final LibraryItem item;
   const _HqReaderView({required this.item});
@@ -88,6 +83,9 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
   bool _showBars = true;
   int _currentPage = 0;
   final _cbzService = CbzReaderService();
+
+  bool _showTranslation = false;
+  TranslationLang _translationLang = TranslationLang.japanese;
 
   @override
   void initState() {
@@ -115,7 +113,6 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
       final path = widget.item.localPath!;
       final ext = path.toLowerCase();
 
-      // CBR/RAR: redireciona para a tela de conversão automática
       if (ext.endsWith('.cbr') ||
           ext.endsWith('.cb7') ||
           ext.endsWith('.rar')) {
@@ -136,14 +133,15 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
         throw Exception('Formato não suportado.');
       }
 
-      // Resolve o arquivo para processamento (copia URI SAF para cache se necessário)
       final resolvedFile = await SafFileResolver.resolveForProcessing(path);
       final pages = await _cbzService.extractCbz(
         resolvedFile.path,
         widget.item.id,
       );
 
-      if (mounted) setState(() => _pages = pages);
+      if (mounted) {
+        setState(() => _pages = pages);
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
@@ -151,13 +149,94 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
     }
   }
 
-  void toggleBars() => setState(() => _showBars = !_showBars);
+  void _toggleBars() => setState(() => _showBars = !_showBars);
 
-  void goTo(int page) {
+  void _goTo(int page) {
     _pageController.animateToPage(
       page,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
+    );
+  }
+
+  void _openTranslationPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        if (!mounted) {
+          return const SizedBox.shrink();
+        }
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Traduzir de qual idioma?',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Texto detectado será traduzido para Português',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                ...TranslationLang.values.map((lang) {
+                  final isSelected = lang == _translationLang;
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white24 : Colors.white10,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.translate_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    title: Text(
+                      lang.label,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(
+                            Icons.check_rounded,
+                            color: Colors.lightBlueAccent,
+                          )
+                        : null,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      setState(() {
+                        _translationLang = lang;
+                        _showTranslation = true;
+                      });
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -166,7 +245,7 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
-      appBar: _showBars
+      appBar: _showBars && !_showTranslation
           ? AppBar(
               backgroundColor: Colors.black.withValues(alpha: 0.75),
               foregroundColor: Colors.white,
@@ -181,8 +260,25 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
               ),
               actions: [
                 if (_pages != null)
+                  IconButton(
+                    onPressed: _showTranslation
+                        ? () => setState(() => _showTranslation = false)
+                        : _openTranslationPicker,
+                    icon: Icon(
+                      _showTranslation
+                          ? Icons.translate_rounded
+                          : Icons.translate_outlined,
+                      color: _showTranslation
+                          ? Colors.lightBlueAccent
+                          : Colors.white,
+                    ),
+                    tooltip: _showTranslation
+                        ? 'Fechar tradução'
+                        : 'Traduzir página',
+                  ),
+                if (_pages != null)
                   Padding(
-                    padding: const EdgeInsets.only(right: 16),
+                    padding: const EdgeInsets.only(right: 12),
                     child: Center(
                       child: Text(
                         '${_currentPage + 1} / ${_pages!.length}',
@@ -197,84 +293,42 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
               ],
             )
           : null,
-      body: buildBody(),
+      body: _buildBody(),
     );
   }
 
-  Widget buildBody() {
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.error_outline_rounded,
-                color: AppColors.error,
-                size: 52,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _error!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 15,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 24),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                label: const Text(
-                  'Voltar',
-                  style: TextStyle(color: Colors.white),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.white30),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_pages == null) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: AppColors.comicAccent),
-            SizedBox(height: 16),
-            Text(
-              'Extraindo páginas...',
-              style: TextStyle(color: Colors.white60, fontSize: 14),
-            ),
-          ],
-        ),
-      );
-    }
+  Widget _buildBody() {
+    if (_error != null) return _buildError();
+    if (_pages == null) return _buildLoading();
 
     return Stack(
       children: [
         Positioned.fill(
           child: GestureDetector(
-            onTap: toggleBars,
+            onTap: _showTranslation ? null : _toggleBars,
             child: PageView.builder(
               controller: _pageController,
               itemCount: _pages!.length,
-              onPageChanged: (i) => setState(() => _currentPage = i),
-              itemBuilder: (context, index) {
-                return _buildPageImage(_pages![index], index);
-              },
+              onPageChanged: (i) => setState(() {
+                _currentPage = i;
+                _showTranslation = false;
+              }),
+              itemBuilder: (context, index) =>
+                  _buildPageImage(_pages![index], index),
             ),
           ),
         ),
-        if (_showBars)
-          Positioned(left: 0, right: 0, bottom: 0, child: buildBottomBar()),
+        if (_showTranslation && _pages != null)
+          Positioned.fill(
+            child: TranslationOverlay(
+              imageFile: _pages![_currentPage],
+              sourceLang: _translationLang,
+              onClose: () => setState(() => _showTranslation = false),
+              onLangChanged: (lang) => setState(() => _translationLang = lang),
+            ),
+          ),
+        if (_showBars && !_showTranslation)
+          Positioned(left: 0, right: 0, bottom: 0, child: _buildBottomBar()),
       ],
     );
   }
@@ -309,9 +363,8 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
                   ),
                 );
               },
-              errorBuilder: (context, error, stackTrace) {
-                return _buildPageError(index);
-              },
+              errorBuilder: (context, error, stackTrace) =>
+                  _buildPageError(index),
             ),
           ),
         );
@@ -349,7 +402,63 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
     );
   }
 
-  Widget buildBottomBar() {
+  Widget _buildLoading() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(color: AppColors.comicAccent),
+          SizedBox(height: 16),
+          Text(
+            'Extraindo páginas...',
+            style: TextStyle(color: Colors.white60, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.error,
+              size: 52,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 15,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              label: const Text(
+                'Voltar',
+                style: TextStyle(color: Colors.white),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.white30),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
     final pages = _pages!;
     return Container(
       color: Colors.black.withValues(alpha: 0.85),
@@ -364,8 +473,9 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
                 color: Colors.white70,
                 size: 20,
               ),
-              onPressed: _currentPage > 0 ? () => goTo(_currentPage - 1) : null,
-              tooltip: 'Página anterior',
+              onPressed: _currentPage > 0
+                  ? () => _goTo(_currentPage - 1)
+                  : null,
             ),
             Expanded(
               child: SliderTheme(
@@ -380,7 +490,7 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
                   min: 0,
                   max: (pages.length - 1).toDouble(),
                   value: _currentPage.toDouble(),
-                  onChanged: (v) => goTo(v.round()),
+                  onChanged: (v) => _goTo(v.round()),
                 ),
               ),
             ),
@@ -391,9 +501,8 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
                 size: 20,
               ),
               onPressed: _currentPage < pages.length - 1
-                  ? () => goTo(_currentPage + 1)
+                  ? () => _goTo(_currentPage + 1)
                   : null,
-              tooltip: 'Próxima página',
             ),
           ],
         ),

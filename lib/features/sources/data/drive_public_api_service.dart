@@ -1,180 +1,305 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/utils/drive_link_parser.dart';
 import '../../library/domain/library_item.dart';
 
-const String _driveApiKey = String.fromEnvironment('DRIVE_API_KEY');
+class PublicLinkResult {
+  final LibraryItem? item;
+  final String? errorMessage;
+  final bool isFolder;
+
+  const PublicLinkResult({this.item, this.errorMessage, this.isFolder = false});
+
+  bool get success => item != null;
+}
 
 class DrivePublicApiService {
-  bool get hasApiKey => _driveApiKey.isNotEmpty;
+  bool get hasApiKey => true;
 
-  static const _audioExtensions = {'mp3', 'm4a', 'aac'};
-  static const _hqExtensions = {'cbr', 'cbz', 'cb7', 'cbt', 'cba'};
-  static const _ebookExtensions = {'epub', 'mobi', 'azw3', 'kfx'};
+  static const _supportedMimes = {
+    'application/pdf',
+    'application/zip',
+    'application/x-cbz',
+    'application/vnd.comicbook+zip',
+    'application/x-cbr',
+    'application/x-rar-compressed',
+    'application/vnd.rar',
+    'audio/mpeg',
+    'audio/mp4',
+    'audio/aac',
+    'audio/wav',
+    'audio/opus',
+    'application/epub+zip',
+    'application/x-mobipocket-ebook',
+    'application/vnd.amazon.ebook',
+  };
 
-  Future<List<LibraryItem>> syncSource({
+  Future<PublicLinkResult> processPublicLink({
     required String userId,
     required String sourceId,
-    required String driveId,
-    required bool isFolder,
+    required String url,
+    required String name,
+    void Function(String status)? onStatus,
   }) async {
-    if (!hasApiKey) {
-      throw Exception('API_KEY_MISSING');
-    }
-
-    if (isFolder) {
-      return _fetchFolder(
-        userId: userId,
-        sourceId: sourceId,
-        folderId: driveId,
-      );
-    } else {
-      return _fetchFile(userId: userId, sourceId: sourceId, fileId: driveId);
-    }
-  }
-
-  Future<List<LibraryItem>> _fetchFolder({
-    required String userId,
-    required String sourceId,
-    required String folderId,
-    String? pageToken,
-    List<LibraryItem>? accumulated,
-  }) async {
-    final items = accumulated ?? <LibraryItem>[];
-    final url = DriveLinkParser.buildListUrl(
-      folderId,
-      _driveApiKey,
-      pageToken: pageToken,
-    );
-
-    final response = await http.get(Uri.parse(url));
-
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw Exception('PERMISSION_DENIED');
-    }
-    if (response.statusCode == 404) {
-      throw Exception('NOT_FOUND');
-    }
-    if (response.statusCode != 200) {
-      throw Exception('HTTP_ERROR_${response.statusCode}');
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final files = (data['files'] as List<dynamic>?) ?? [];
-    final nextPageToken = data['nextPageToken'] as String?;
-
-    for (final file in files) {
-      final item = _fileToItem(file as Map<String, dynamic>, userId, sourceId);
-      if (item != null) items.add(item);
-    }
-
-    if (nextPageToken != null) {
-      return _fetchFolder(
-        userId: userId,
-        sourceId: sourceId,
-        folderId: folderId,
-        pageToken: nextPageToken,
-        accumulated: items,
+    if (DriveLinkParser.isFolder(url)) {
+      return const PublicLinkResult(
+        isFolder: true,
+        errorMessage:
+            'Pastas do Drive precisam de uma API key para listar arquivos. '
+            'Por enquanto, adicione os arquivos individualmente colando o '
+            'link de cada arquivo.',
       );
     }
 
-    if (items.isEmpty) {
-      throw Exception('FOLDER_EMPTY');
+    final fileId = DriveLinkParser.extractFileId(url);
+    if (fileId == null) {
+      return const PublicLinkResult(
+        errorMessage:
+            'Link inválido. Cole o link de um arquivo público do Google Drive.',
+      );
     }
 
-    return items;
+    onStatus?.call('Verificando arquivo...');
+
+    final downloadUrl = DriveLinkParser.buildDirectDownloadUrl(fileId);
+    http.Response headResponse;
+    try {
+      headResponse = await http
+          .head(Uri.parse(downloadUrl))
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      return const PublicLinkResult(
+        errorMessage:
+            'Não foi possível acessar o arquivo. '
+            'Verifique se o link é público e tente novamente.',
+      );
+    }
+
+    if (headResponse.statusCode == 404) {
+      return const PublicLinkResult(
+        errorMessage: 'Arquivo não encontrado. Verifique o link.',
+      );
+    }
+
+    if (headResponse.statusCode == 403 || headResponse.statusCode == 401) {
+      return const PublicLinkResult(
+        errorMessage:
+            'Acesso negado. Certifique-se de que o arquivo está configurado como '
+            '"Qualquer pessoa com o link pode ver".',
+      );
+    }
+
+    final contentDisposition = headResponse.headers['content-disposition'];
+    final contentType = headResponse.headers['content-type'];
+    final detectedName =
+        DriveLinkParser.extractFilenameFromContentDisposition(
+          contentDisposition,
+        ) ??
+        name.trim();
+
+    final fileType = _detectType(detectedName, contentType);
+
+    if (fileType == ItemFileType.unknown) {
+      return PublicLinkResult(
+        errorMessage:
+            'Formato não suportado: "$detectedName". '
+            'Use PDF, CBZ, CBR, EPUB, MOBI, AZW3, KFX ou arquivos de áudio.',
+      );
+    }
+
+    final now = DateTime.now();
+    final itemTitle = p.basenameWithoutExtension(detectedName).trim().isEmpty
+        ? name.trim()
+        : p.basenameWithoutExtension(detectedName);
+
+    if (fileType == ItemFileType.pdf) {
+      final item = LibraryItem(
+        id: 'drive_$fileId',
+        userId: userId,
+        sourceId: sourceId,
+        title: itemTitle,
+        type: ItemType.pdf,
+        origin: ItemOrigin.online,
+        driveFileId: fileId,
+        remoteUrl: downloadUrl,
+        relativePath: detectedName,
+        isNew: true,
+        createdAt: now,
+        updatedAt: now,
+      );
+      return PublicLinkResult(item: item);
+    }
+
+    if (fileType == ItemFileType.audio) {
+      final item = LibraryItem(
+        id: 'drive_$fileId',
+        userId: userId,
+        sourceId: sourceId,
+        title: itemTitle,
+        type: ItemType.audio,
+        origin: ItemOrigin.online,
+        driveFileId: fileId,
+        remoteUrl: downloadUrl,
+        relativePath: detectedName,
+        isNew: true,
+        createdAt: now,
+        updatedAt: now,
+      );
+      return PublicLinkResult(item: item);
+    }
+
+    if (fileType == ItemFileType.epub) {
+      final item = LibraryItem(
+        id: 'drive_$fileId',
+        userId: userId,
+        sourceId: sourceId,
+        title: itemTitle,
+        type: ItemType.ebook,
+        origin: ItemOrigin.online,
+        driveFileId: fileId,
+        remoteUrl: downloadUrl,
+        relativePath: detectedName,
+        isNew: true,
+        createdAt: now,
+        updatedAt: now,
+      );
+      return PublicLinkResult(item: item);
+    }
+
+    onStatus?.call('Baixando HQ para o dispositivo...');
+
+    try {
+      final cachedFile = await _downloadToCache(
+        fileId: fileId,
+        fileName: detectedName,
+        downloadUrl: downloadUrl,
+        onStatus: onStatus,
+      );
+
+      final item = LibraryItem(
+        id: 'drive_$fileId',
+        userId: userId,
+        sourceId: sourceId,
+        title: itemTitle,
+        type: ItemType.hq,
+        origin: ItemOrigin.online,
+        driveFileId: fileId,
+        remoteUrl: downloadUrl,
+        localPath: cachedFile.path,
+        relativePath: detectedName,
+        isNew: true,
+        createdAt: now,
+        updatedAt: now,
+      );
+      return PublicLinkResult(item: item);
+    } catch (e) {
+      return PublicLinkResult(
+        errorMessage:
+            'Não foi possível baixar o arquivo: '
+            '${e.toString().replaceFirst('Exception: ', '')}',
+      );
+    }
   }
 
-  Future<List<LibraryItem>> _fetchFile({
-    required String userId,
-    required String sourceId,
+  ItemFileType _detectType(String fileName, String? contentType) {
+    final byName = DriveLinkParser.detectTypeFromName(fileName);
+    if (byName != ItemFileType.unknown) return byName;
+
+    final mime = contentType?.split(';').first.trim().toLowerCase();
+    if (mime == null || !_supportedMimes.contains(mime)) {
+      return ItemFileType.unknown;
+    }
+
+    if (mime == 'application/pdf') return ItemFileType.pdf;
+    if (mime == 'application/epub+zip' ||
+        mime == 'application/x-mobipocket-ebook' ||
+        mime == 'application/vnd.amazon.ebook') {
+      return ItemFileType.epub;
+    }
+    if (mime.startsWith('audio/')) return ItemFileType.audio;
+    if (mime.contains('rar') || mime.contains('cbr')) return ItemFileType.cbr;
+    return ItemFileType.cbz;
+  }
+
+  Future<File> _downloadToCache({
     required String fileId,
+    required String fileName,
+    required String downloadUrl,
+    void Function(String status)? onStatus,
   }) async {
-    final url = DriveLinkParser.buildMetaUrl(fileId, _driveApiKey);
-    final response = await http.get(Uri.parse(url));
+    final cacheDir = await getTemporaryDirectory();
+    final hash = sha1.convert(utf8.encode(fileId)).toString().substring(0, 12);
+    final ext = p.extension(fileName).isNotEmpty
+        ? p.extension(fileName)
+        : '.cbz';
+    final targetDir = Directory(p.join(cacheDir.path, 'drive_cache'));
+    if (!await targetDir.exists()) await targetDir.create(recursive: true);
 
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw Exception('PERMISSION_DENIED');
+    final targetFile = File(p.join(targetDir.path, '$hash$ext'));
+
+    if (await targetFile.exists() && await targetFile.length() > 0) {
+      return targetFile;
     }
-    if (response.statusCode == 404) {
-      throw Exception('NOT_FOUND');
+
+    final client = http.Client();
+    try {
+      final request = http.Request('GET', Uri.parse(downloadUrl));
+      final streamedResponse = await client
+          .send(request)
+          .timeout(const Duration(minutes: 10));
+
+      if (streamedResponse.statusCode != 200) {
+        throw Exception(
+          'Servidor retornou ${streamedResponse.statusCode}. '
+          'Verifique se o arquivo está público.',
+        );
+      }
+
+      final totalBytes = streamedResponse.contentLength ?? 0;
+      var receivedBytes = 0;
+
+      final sink = targetFile.openWrite();
+      try {
+        await streamedResponse.stream.forEach((chunk) {
+          sink.add(chunk);
+          receivedBytes += chunk.length;
+          if (totalBytes > 0) {
+            final percent = (receivedBytes / totalBytes * 100).round();
+            onStatus?.call('Baixando... $percent%');
+          }
+        });
+      } finally {
+        await sink.flush();
+        await sink.close();
+      }
+    } finally {
+      client.close();
     }
-    if (response.statusCode != 200) {
-      throw Exception('HTTP_ERROR_${response.statusCode}');
+
+    if (await targetFile.length() == 0) {
+      await targetFile.delete();
+      throw Exception('Arquivo baixado está vazio. Tente novamente.');
     }
 
-    final file = jsonDecode(response.body) as Map<String, dynamic>;
-    final item = _fileToItem(file, userId, sourceId);
-    if (item == null) throw Exception('UNSUPPORTED_FILE');
-    return [item];
-  }
-
-  LibraryItem? _fileToItem(
-    Map<String, dynamic> file,
-    String userId,
-    String sourceId,
-  ) {
-    final name = file['name'] as String? ?? '';
-    final mimeType = file['mimeType'] as String? ?? '';
-    final id = file['id'] as String? ?? '';
-    final thumbnail = file['thumbnailLink'] as String?;
-    final modifiedTime = file['modifiedTime'] as String?;
-    final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
-    final type = _itemTypeForExtension(ext, mimeType);
-
-    if (type == null) return null;
-
-    final now = modifiedTime != null
-        ? DateTime.parse(modifiedTime)
-        : DateTime.now();
-    final downloadUrl = DriveLinkParser.buildDownloadUrl(id, _driveApiKey);
-
-    return LibraryItem(
-      id: 'drive_$id',
-      userId: userId,
-      sourceId: sourceId,
-      title: name.contains('.')
-          ? name.substring(0, name.lastIndexOf('.'))
-          : name,
-      type: type,
-      origin: ItemOrigin.online,
-      driveFileId: id,
-      remoteUrl: downloadUrl,
-      thumbnailUrl: thumbnail,
-      isNew: true,
-      createdAt: now,
-      updatedAt: now,
-    );
-  }
-
-  ItemType? _itemTypeForExtension(String ext, String mimeType) {
-    if (ext == 'pdf' || mimeType.contains('pdf')) return ItemType.pdf;
-    if (_audioExtensions.contains(ext) || mimeType.contains('audio')) {
-      return ItemType.audio;
-    }
-    if (_hqExtensions.contains(ext)) return ItemType.hq;
-    if (_ebookExtensions.contains(ext)) return ItemType.ebook;
-    if (ext == 'doc' || ext == 'docx') return ItemType.document;
-    if (ext == 'txt' || mimeType.startsWith('text/')) return ItemType.text;
-    return null;
+    return targetFile;
   }
 
   String getFriendlyError(String code) {
     switch (code) {
-      case 'API_KEY_MISSING':
-        return 'Chave da API do Google Drive nao configurada. Execute o app com --dart-define=DRIVE_API_KEY=SUA_CHAVE.';
       case 'PERMISSION_DENIED':
-        return 'Permissao negada. Certifique-se de que o link e publico e configurado como "Qualquer pessoa com o link pode ver".';
+        return 'Acesso negado. Configure o arquivo como público no Drive.';
       case 'NOT_FOUND':
-        return 'Arquivo ou pasta nao encontrado. Verifique o link informado.';
-      case 'FOLDER_EMPTY':
-        return 'A pasta nao contem arquivos compativeis.';
-      case 'UNSUPPORTED_FILE':
-        return 'O arquivo informado nao e suportado nesta biblioteca.';
+        return 'Arquivo não encontrado. Verifique o link.';
+      case 'FOLDER_NO_API':
+        return 'Pastas públicas precisam de API key. Adicione arquivos individuais.';
       default:
-        return 'Erro ao acessar o Google Drive. Verifique o link e tente novamente.';
+        return 'Erro ao acessar o arquivo. Verifique o link e tente novamente.';
     }
   }
 }

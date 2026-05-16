@@ -76,7 +76,11 @@ class LocalLibraryRepository implements LibraryRepository {
         ext == 'cba') {
       return ItemType.hq;
     }
-    if (ext == 'epub' || ext == 'mobi' || ext == 'azw3' || ext == 'kfx') {
+    if (ext == 'epub' ||
+        ext == 'mobi' ||
+        ext == 'azw' ||
+        ext == 'azw3' ||
+        ext == 'kfx') {
       return ItemType.ebook;
     }
     if (ext == 'txt') return ItemType.text;

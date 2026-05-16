@@ -17,7 +17,7 @@ class SourcesPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sourcesState = ref.watch(sourcesControllerProvider);
-    final hasApiKey = ref.watch(driveApiServiceProvider).hasApiKey;
+    final importTasks = ref.watch(driveImportControllerProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -61,20 +61,21 @@ class SourcesPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Gerencie suas conexões do Google Drive.',
+                    'Adicione links públicos de arquivos do Google Drive.',
                     style: TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
                   ),
-                  if (!hasApiKey) ...[
-                    const SizedBox(height: 12),
-                    const _ApiKeyBanner(),
-                  ],
                   const SizedBox(height: 16),
                 ],
               ),
             ),
+            if (importTasks.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: _DriveImportTasksPanel(tasks: importTasks),
+              ),
             Expanded(
               child: sourcesState.when(
                 loading: () =>
@@ -253,35 +254,123 @@ class SourcesPage extends ConsumerWidget {
   }
 }
 
-class _ApiKeyBanner extends StatelessWidget {
-  const _ApiKeyBanner();
+class _DriveImportTasksPanel extends ConsumerWidget {
+  final List<DriveImportTask> tasks;
+
+  const _DriveImportTasksPanel({required this.tasks});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final visibleTasks = tasks.take(4).toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Importações do Drive',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (final task in visibleTasks) ...[
+            _DriveImportTaskTile(task: task),
+            if (task.canRetry) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => ref
+                      .read(driveImportControllerProvider.notifier)
+                      .retryTask(task.id),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text('Tentar novamente'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+            ],
+            if (task != visibleTasks.last) const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DriveImportTaskTile extends StatelessWidget {
+  final DriveImportTask task;
+
+  const _DriveImportTaskTile({required this.task});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
-      ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              AppStrings.noApiKey,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                height: 1.35,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 20,
+          height: 20,
+          child: task.isActive
+              ? CircularProgressIndicator(
+                  value: task.progress,
+                  strokeWidth: 2.5,
+                  color: AppColors.primary,
+                )
+              : Icon(
+                  task.status == DriveImportStatus.error
+                      ? Icons.error_outline_rounded
+                      : Icons.check_circle_outline_rounded,
+                  size: 20,
+                  color: task.status == DriveImportStatus.error
+                      ? AppColors.error
+                      : AppColors.localAccent,
+                ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                task.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
+              const SizedBox(height: 2),
+              Text(
+                task.errorMessage ?? task.statusMessage,
+                style: TextStyle(
+                  color: task.status == DriveImportStatus.error
+                      ? AppColors.error
+                      : AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

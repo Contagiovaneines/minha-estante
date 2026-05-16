@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../../core/widgets/app_button.dart';
-import '../../../core/widgets/app_text_field.dart';
 import 'auth_controller.dart';
 
 class DriveSetupPage extends ConsumerStatefulWidget {
@@ -17,8 +16,7 @@ class DriveSetupPage extends ConsumerStatefulWidget {
 }
 
 class _DriveSetupPageState extends ConsumerState<DriveSetupPage> {
-  final _apiKeyCtrl = TextEditingController();
-  bool _useDrive = false;
+  bool _showSourcesTab = true;
 
   @override
   void initState() {
@@ -27,17 +25,10 @@ class _DriveSetupPageState extends ConsumerState<DriveSetupPage> {
       final user = ref.read(authControllerProvider).value;
       if (user != null) {
         setState(() {
-          _useDrive = LocalStorageService.isDriveEnabled(user.id);
-          _apiKeyCtrl.text = LocalStorageService.getDriveApiKey(user.id) ?? '';
+          _showSourcesTab = LocalStorageService.isDriveEnabled(user.id);
         });
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _apiKeyCtrl.dispose();
-    super.dispose();
   }
 
   void _finish() async {
@@ -45,8 +36,7 @@ class _DriveSetupPageState extends ConsumerState<DriveSetupPage> {
     if (user != null) {
       await LocalStorageService.saveDriveSettings(
         user.id,
-        enabled: _useDrive,
-        apiKey: _useDrive ? _apiKeyCtrl.text.trim() : null,
+        enabled: _showSourcesTab,
       );
     }
     if (mounted) {
@@ -69,26 +59,29 @@ class _DriveSetupPageState extends ConsumerState<DriveSetupPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
-              Icon(
+              const Icon(
                 Icons.add_to_drive_rounded,
                 size: 64,
                 color: AppColors.primary,
               ),
               const SizedBox(height: 24),
               Text(
-                'Usar o Google Drive?',
+                'Links do Google Drive',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.playfairDisplay(
-                  fontSize: 26,
+                  fontSize: 24,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                'O aplicativo pode se conectar ao seu Google Drive para ler HQs, PDFs, Epubs e Áudios diretamente de lá.\n\nPara isso, você precisa informar a sua chave de API pessoal, garantindo que só você terá acesso aos seus arquivos. Ou pode continuar sem usar o Drive (ler apenas arquivos do celular).',
+              const Text(
+                'Você pode adicionar links públicos de arquivos do Google Drive '
+                'à sua biblioteca — sem precisar de conta Google ou chave de API.\n\n'
+                'Suporta PDF, CBZ, CBR e arquivos de áudio.\n\n'
+                'Ative abaixo para mostrar a aba "Fontes" no menu.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 15,
                   height: 1.5,
@@ -102,31 +95,19 @@ class _DriveSetupPageState extends ConsumerState<DriveSetupPage> {
                   border: Border.all(color: AppColors.border),
                 ),
                 child: SwitchListTile(
-                  value: _useDrive,
+                  value: _showSourcesTab,
                   activeThumbColor: AppColors.primary,
-                  onChanged: (val) {
-                    setState(() => _useDrive = val);
-                  },
+                  onChanged: (val) => setState(() => _showSourcesTab = val),
                   title: const Text(
-                    'Habilitar Google Drive',
+                    'Mostrar aba de Fontes online',
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                   ),
                   subtitle: const Text(
-                    'Se desativado, a aba de fontes do Drive será escondida.',
+                    'Permite adicionar e gerenciar links do Drive.',
                     style: TextStyle(fontSize: 12),
                   ),
                 ),
               ),
-              if (_useDrive) ...[
-                const SizedBox(height: 20),
-                AppTextField(
-                  controller: _apiKeyCtrl,
-                  label:
-                      'Sua Chave de API do Google (Opcional se usar pasta pública)',
-                  hintText: 'AIzaSy...',
-                  prefixIcon: Icons.key_rounded,
-                ),
-              ],
               const SizedBox(height: 48),
               AppButton(label: 'Continuar', onPressed: _finish),
             ],

@@ -11,6 +11,7 @@ import '../../../core/widgets/progress_bar.dart';
 import '../../library/domain/library_item.dart';
 import '../../library/presentation/library_controller.dart';
 import '../../library/presentation/widgets/library_item_cover.dart';
+import '../../reader/domain/ebook_format_support.dart';
 
 class BookDetailPage extends ConsumerWidget {
   final String itemId;
@@ -374,6 +375,9 @@ class _BookDetailView extends ConsumerWidget {
       case ItemType.hq:
         return '/hq/${item.id}';
       case ItemType.ebook:
+        return EbookFormatSupport.canReadInternally(item)
+            ? '/epub/${item.id}'
+            : '/document/${item.id}';
       case ItemType.document:
       case ItemType.text:
         return '/document/${item.id}';

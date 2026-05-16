@@ -6,6 +6,10 @@ class ReadingProgress {
   final int totalPages;
   final double percent;
   final int? positionSeconds;
+  final String? epubCfi;
+  final String? epubEndCfi;
+  final String? epubStartXpath;
+  final String? epubEndXpath;
   final DateTime updatedAt;
 
   const ReadingProgress({
@@ -16,6 +20,10 @@ class ReadingProgress {
     required this.totalPages,
     required this.percent,
     this.positionSeconds,
+    this.epubCfi,
+    this.epubEndCfi,
+    this.epubStartXpath,
+    this.epubEndXpath,
     required this.updatedAt,
   });
 
@@ -27,6 +35,10 @@ class ReadingProgress {
     int? totalPages,
     double? percent,
     int? positionSeconds,
+    String? epubCfi,
+    String? epubEndCfi,
+    String? epubStartXpath,
+    String? epubEndXpath,
     DateTime? updatedAt,
   }) {
     return ReadingProgress(
@@ -37,6 +49,10 @@ class ReadingProgress {
       totalPages: totalPages ?? this.totalPages,
       percent: percent ?? this.percent,
       positionSeconds: positionSeconds ?? this.positionSeconds,
+      epubCfi: epubCfi ?? this.epubCfi,
+      epubEndCfi: epubEndCfi ?? this.epubEndCfi,
+      epubStartXpath: epubStartXpath ?? this.epubStartXpath,
+      epubEndXpath: epubEndXpath ?? this.epubEndXpath,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -49,6 +65,10 @@ class ReadingProgress {
     'totalPages': totalPages,
     'percent': percent,
     'positionSeconds': positionSeconds,
+    'epubCfi': epubCfi,
+    'epubEndCfi': epubEndCfi,
+    'epubStartXpath': epubStartXpath,
+    'epubEndXpath': epubEndXpath,
     'updatedAt': updatedAt.toIso8601String(),
   };
 
@@ -61,6 +81,10 @@ class ReadingProgress {
         totalPages: (json['totalPages'] as num).toInt(),
         percent: (json['percent'] as num).toDouble(),
         positionSeconds: (json['positionSeconds'] as num?)?.toInt(),
+        epubCfi: json['epubCfi'] as String?,
+        epubEndCfi: json['epubEndCfi'] as String?,
+        epubStartXpath: json['epubStartXpath'] as String?,
+        epubEndXpath: json['epubEndXpath'] as String?,
         updatedAt: DateTime.parse(json['updatedAt'] as String),
       );
 }

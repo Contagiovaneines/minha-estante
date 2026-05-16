@@ -456,6 +456,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     }
     if (extension == 'epub' ||
         extension == 'mobi' ||
+        extension == 'azw' ||
         extension == 'azw3' ||
         extension == 'kfx') {
       return ItemType.ebook;
@@ -473,6 +474,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     'cb7',
     'cbt',
     'cba',
+    'azw',
     'azw3',
     'kfx',
     'mobi',

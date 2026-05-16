@@ -36,8 +36,7 @@ class AppStrings {
   static const String syncSuccess = 'Sincronização concluída com sucesso!';
   static const String syncError = 'Erro ao sincronizar fonte.';
   static const String noApiKey =
-      'Chave da API do Google Drive não configurada. '
-      'Execute o app com --dart-define=DRIVE_API_KEY=SUA_CHAVE para habilitar a sincronização.';
+      'Não é necessária chave de API. Adicione links públicos de arquivos do Google Drive.';
   static const String linkNotPublic =
       'O link do Drive não é público. Certifique-se de que a pasta está '
       'configurada como "Qualquer pessoa com o link pode ver".';
@@ -56,7 +55,7 @@ class AppStrings {
       'Adicione fontes online ou selecione arquivos do seu dispositivo.';
   static const String emptySources = 'Nenhuma fonte adicionada';
   static const String emptySourcesSubtitle =
-      'Adicione uma pasta pública do Google Drive para começar.';
+      'Adicione um link público de arquivo do Google Drive para começar.';
 
   static const String pdf = 'PDF';
   static const String hq = 'HQ';

@@ -13,6 +13,7 @@ import '../features/sources/presentation/add_drive_source_page.dart';
 import '../features/book_detail/presentation/book_detail_page.dart';
 import '../features/reader/presentation/pdf_reader_page.dart';
 import '../features/reader/presentation/document_reader_page.dart';
+import '../features/reader/presentation/epub_reader_page.dart';
 import '../features/reader/presentation/hq_reader_page.dart';
 import '../features/reader/presentation/cbr_conversion_page.dart';
 import '../features/library/domain/library_item.dart';
@@ -87,6 +88,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           return DocumentReaderPage(itemId: id);
+        },
+      ),
+      GoRoute(
+        path: '/epub/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return EpubReaderPage(itemId: id);
         },
       ),
       GoRoute(

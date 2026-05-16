@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../library/domain/library_item.dart';
 import '../../library/presentation/library_controller.dart';
+import '../domain/ebook_format_support.dart';
 
 class DocumentReaderPage extends ConsumerStatefulWidget {
   final String itemId;
@@ -182,7 +183,10 @@ class _UnsupportedDocumentView extends StatelessWidget {
       case ItemType.hq:
         return 'Este arquivo de HQ foi adicionado a estante. O leitor interno para CBR, CBZ, CB7, CBT e CBA sera ligado em uma fase especifica.';
       case ItemType.ebook:
-        return 'Este ebook foi adicionado a estante. O leitor interno para EPUB, MOBI, AZW3 e KFX ainda nao esta ativo nesta versao.';
+        if (EbookFormatSupport.canReadInternally(item)) {
+          return 'Use o leitor EPUB para abrir este arquivo.';
+        }
+        return 'Este formato ainda não possui leitor interno nesta versão. Converta para EPUB para ler no app.';
       case ItemType.document:
         return 'Este documento foi adicionado a estante. DOC e DOCX precisam de um leitor dedicado para abrir com fidelidade.';
       case ItemType.text:
