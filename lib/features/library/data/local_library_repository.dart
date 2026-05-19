@@ -35,6 +35,7 @@ class LocalLibraryRepository implements LibraryRepository {
     'm4b',
     'aac',
     'wav',
+    'opus',
     'jpg',
     'jpeg',
     'png',
@@ -68,7 +69,14 @@ class LocalLibraryRepository implements LibraryRepository {
 
   ItemType _typeFromPath(String path) {
     final ext = p.extension(path).replaceFirst('.', '').toLowerCase();
-    if (ext == 'mp3' || ext == 'm4a' || ext == 'aac') return ItemType.audio;
+    if (ext == 'mp3' ||
+        ext == 'm4a' ||
+        ext == 'm4b' ||
+        ext == 'aac' ||
+        ext == 'wav' ||
+        ext == 'opus') {
+      return ItemType.audio;
+    }
     if (ext == 'cbz' ||
         ext == 'cbr' ||
         ext == 'cb7' ||

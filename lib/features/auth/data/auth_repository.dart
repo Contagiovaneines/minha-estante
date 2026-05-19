@@ -1,6 +1,7 @@
 import '../domain/app_user.dart';
 
 abstract class AuthRepository {
+  Future<AppUser> enterAsGuest();
   Future<AppUser> login({required String email, required String password});
   Future<AppUser> register({
     required String name,

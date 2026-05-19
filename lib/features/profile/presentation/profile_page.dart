@@ -12,6 +12,7 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../auth/domain/app_user.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../library/domain/library_item.dart';
 import '../../library/presentation/library_controller.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -24,12 +25,10 @@ class ProfilePage extends ConsumerStatefulWidget {
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   Widget build(BuildContext context) {
-    final userState = ref.watch(authControllerProvider);
-    final libraryState = ref.watch(libraryControllerProvider);
-
-    final user = userState.value;
-    final items = libraryState.value ?? [];
+    final user = ref.watch(authControllerProvider).value;
+    final items = ref.watch(libraryControllerProvider).value ?? [];
     final reading = items.where((e) => e.progress > 0 && e.progress < 1).length;
+    final audiobooks = items.where((e) => e.type == ItemType.audio).length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -50,12 +49,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               const SizedBox(height: 20),
               if (user != null) _buildProfileCard(user),
               const SizedBox(height: 20),
-              _buildStatsCard(items.length, reading),
-              const SizedBox(height: 20),
+              _buildStatsCard(items.length, reading, audiobooks),
               const SizedBox(height: 20),
               if (user != null) _buildMenuSection(context, ref, user),
               const SizedBox(height: 20),
-              _buildLogoutCard(context, ref),
+              _buildExitCard(context, ref),
               const SizedBox(height: 40),
             ],
           ),
@@ -65,19 +63,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Widget _buildProfileCard(AppUser user) {
+    final imagePath = LocalStorageService.getProfileImage(user.id);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -86,15 +79,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             child: CircleAvatar(
               radius: 36,
               backgroundColor: AppColors.primary,
-              backgroundImage:
-                  LocalStorageService.getProfileImage(user.id) != null
-                  ? FileImage(
-                      File(LocalStorageService.getProfileImage(user.id)!),
-                    )
+              backgroundImage: imagePath != null
+                  ? FileImage(File(imagePath))
                   : null,
-              child: LocalStorageService.getProfileImage(user.id) == null
+              child: imagePath == null
                   ? Text(
-                      user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                      user.name.isNotEmpty ? user.name[0].toUpperCase() : 'L',
                       style: const TextStyle(
                         color: AppColors.onPrimary,
                         fontSize: 28,
@@ -117,10 +107,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  user.email,
-                  style: const TextStyle(
+                const SizedBox(height: 4),
+                const Text(
+                  'Perfil local neste aparelho',
+                  style: TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
                   ),
@@ -133,7 +123,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
-  Widget _buildStatsCard(int books, int reading) {
+  Widget _buildStatsCard(int books, int reading, int audiobooks) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -169,6 +159,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   value: '$reading',
                   label: AppStrings.reading,
                   icon: Icons.bookmark_rounded,
+                  color: AppColors.localAccent,
+                ),
+              ),
+              Container(width: 1, height: 50, color: AppColors.border),
+              Expanded(
+                child: _StatItem(
+                  value: '$audiobooks',
+                  label: 'Audios',
+                  icon: Icons.headphones_rounded,
                   color: AppColors.audioAccent,
                 ),
               ),
@@ -180,7 +179,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Widget _buildMenuSection(BuildContext context, WidgetRef ref, AppUser user) {
-    final showSources = LocalStorageService.isDriveEnabled(user.id);
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -189,49 +187,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ),
       child: Column(
         children: [
-          if (showSources) ...[
-            _MenuItem(
-              icon: Icons.cloud_outlined,
-              label: AppStrings.mySourcesOnline,
-              onTap: () => context.go('/sources'),
-            ),
-            const Divider(height: 1, indent: 56),
-          ],
           _MenuItem(
-            icon: Icons.add_to_drive_rounded,
-            label: 'Configurar Google Drive',
-            onTap: () => context.push('/drive_setup'),
+            icon: Icons.headphones_rounded,
+            label: 'Audiobooks',
+            onTap: () => context.go('/audiobooks'),
           ),
           const Divider(height: 1, indent: 56),
           _MenuItem(
             icon: Icons.edit_rounded,
-            label: 'Editar perfil',
+            label: 'Editar perfil local',
             onTap: () => _editProfile(context, ref, user),
           ),
           const Divider(height: 1, indent: 56),
           _MenuItem(
-            icon: Icons.lock_outline_rounded,
-            label: 'Mudar senha',
-            onTap: () => _changePassword(context, ref),
+            icon: Icons.privacy_tip_outlined,
+            label: 'Privacidade',
+            onTap: () => context.go('/privacy'),
           ),
           const Divider(height: 1, indent: 56),
           _MenuItem(
-            icon: Icons.palette_outlined,
-            label: AppStrings.appTheme,
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tema em breve disponível!'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
-          const Divider(height: 1, indent: 56),
-          _MenuItem(
-            icon: Icons.favorite_border_rounded,
-            label: 'Apoie o Projeto (Doação)',
-            color: AppColors.comicAccent,
+            icon: Icons.volunteer_activism_rounded,
+            label: 'Contribuir com PIX',
+            color: AppColors.audioAccent,
             onTap: () => _showDonation(context),
           ),
           const Divider(height: 1, indent: 56),
@@ -245,7 +222,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
-  Widget _buildLogoutCard(BuildContext context, WidgetRef ref) {
+  Widget _buildExitCard(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -254,7 +231,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ),
       child: _MenuItem(
         icon: Icons.logout_rounded,
-        label: AppStrings.logout,
+        label: 'Voltar para a tela inicial',
         color: AppColors.error,
         onTap: () => _logout(context, ref),
       ),
@@ -268,9 +245,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Limpar cache'),
+        title: const Text('Limpar biblioteca'),
         content: const Text(
-          'Isso removerá todos os itens da biblioteca e o progresso de leitura. As fontes serão mantidas.',
+          'Isso remove os itens salvos no app e o progresso local. Os arquivos originais do celular nao sao apagados.',
         ),
         actions: [
           TextButton(
@@ -288,55 +265,35 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ),
     );
 
-    if (confirm == true) {
-      await LocalStorageService.clearCache(user.id);
-      await ref.read(libraryControllerProvider.notifier).refresh();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.cacheCleared),
-            backgroundColor: AppColors.localAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+    if (confirm != true) return;
+
+    await LocalStorageService.clearCache(user.id);
+    await ref.read(libraryControllerProvider.notifier).refresh();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(AppStrings.cacheCleared),
+        backgroundColor: AppColors.localAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sair'),
-        content: const Text('Deseja sair da sua conta?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Sair', style: TextStyle(color: AppColors.error)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await ref.read(authControllerProvider.notifier).logout();
-    }
+    await ref.read(authControllerProvider.notifier).logout();
   }
 
   void _showDonation(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Apoie o Projeto ❤️'),
+        title: const Text('Apoie o Projeto'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Este app é gratuito, mas caso queira contribuir e apoiar o desenvolvimento contínuo, envie um PIX para a chave abaixo:',
+              'Este app e gratuito. Se quiser contribuir com a comunidade e apoiar novas atualizacoes, envie um PIX para a chave abaixo:',
               style: TextStyle(height: 1.4),
             ),
             const SizedBox(height: 20),
@@ -346,17 +303,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 color: AppColors.surfaceContainer,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text(
-                'meu.pix.aqui@email.com',
+              child: const SelectableText(
+                AppStrings.pixKey,
+                textAlign: TextAlign.center,
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () {
-                Clipboard.setData(
-                  const ClipboardData(text: 'meu.pix.aqui@email.com'),
-                );
+                Clipboard.setData(const ClipboardData(text: AppStrings.pixKey));
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Chave PIX copiada!')),
                 );
@@ -378,45 +334,34 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   void _editProfile(BuildContext context, WidgetRef ref, AppUser user) {
     final ctrl = TextEditingController(text: user.name);
-    showDialog(
+
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Editar perfil'),
+        title: const Text('Editar perfil local'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             GestureDetector(
               onTap: () async {
                 final result = await FilePicker.pickFiles(type: FileType.image);
-                if (result != null && result.files.single.path != null) {
-                  await LocalStorageService.setProfileImage(
-                    user.id,
-                    result.files.single.path!,
-                  );
-                  setState(() {});
-                  if (ctx.mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Foto atualizada!')),
-                    );
-                  }
-                }
+                if (result == null || result.files.single.path == null) return;
+
+                await LocalStorageService.setProfileImage(
+                  user.id,
+                  result.files.single.path!,
+                );
+                setState(() {});
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
               },
-              child: CircleAvatar(
+              child: const CircleAvatar(
                 radius: 40,
                 backgroundColor: AppColors.surfaceContainer,
-                backgroundImage:
-                    LocalStorageService.getProfileImage(user.id) != null
-                    ? FileImage(
-                        File(LocalStorageService.getProfileImage(user.id)!),
-                      )
-                    : null,
-                child: LocalStorageService.getProfileImage(user.id) == null
-                    ? const Icon(
-                        Icons.camera_alt_rounded,
-                        color: AppColors.textSecondary,
-                      )
-                    : null,
+                child: Icon(
+                  Icons.camera_alt_rounded,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -437,74 +382,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               if (ctrl.text.trim().isNotEmpty) {
                 await ref
                     .read(authControllerProvider.notifier)
-                    .updateProfile(name: ctrl.text);
+                    .updateProfile(name: ctrl.text.trim());
               }
               if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Salvar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _changePassword(BuildContext context, WidgetRef ref) {
-    final oldCtrl = TextEditingController();
-    final newCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Mudar senha'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: oldCtrl,
-              decoration: const InputDecoration(labelText: 'Senha atual'),
-              obscureText: true,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: newCtrl,
-              decoration: const InputDecoration(labelText: 'Nova senha'),
-              obscureText: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (oldCtrl.text.isEmpty || newCtrl.text.isEmpty) return;
-              try {
-                await ref
-                    .read(authControllerProvider.notifier)
-                    .updatePassword(
-                      oldPassword: oldCtrl.text,
-                      newPassword: newCtrl.text,
-                    );
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Senha atualizada com sucesso!'),
-                      backgroundColor: AppColors.localAccent,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (ctx.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(e.toString()),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                }
-              }
             },
             child: const Text('Salvar'),
           ),
@@ -565,7 +445,8 @@ class _MenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? AppColors.textPrimary;
+    final itemColor = color ?? AppColors.textPrimary;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -575,19 +456,19 @@ class _MenuItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Row(
             children: [
-              Icon(icon, color: c, size: 22),
+              Icon(icon, color: itemColor, size: 22),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
                   label,
                   style: TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: c,
+                    fontWeight: FontWeight.w600,
+                    color: itemColor,
                   ),
                 ),
               ),
-              Icon(
+              const Icon(
                 Icons.chevron_right_rounded,
                 color: AppColors.border,
                 size: 20,

@@ -3,13 +3,9 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/presentation/auth_controller.dart';
 import '../features/auth/presentation/login_page.dart';
-import '../features/auth/presentation/register_page.dart';
-import '../features/auth/presentation/drive_setup_page.dart';
 import '../features/splash/presentation/splash_page.dart';
 import '../features/library/presentation/library_page.dart';
 import '../features/library/presentation/local_collection_page.dart';
-import '../features/sources/presentation/sources_page.dart';
-import '../features/sources/presentation/add_drive_source_page.dart';
 import '../features/book_detail/presentation/book_detail_page.dart';
 import '../features/reader/presentation/pdf_reader_page.dart';
 import '../features/reader/presentation/document_reader_page.dart';
@@ -18,8 +14,9 @@ import '../features/reader/presentation/hq_reader_page.dart';
 import '../features/reader/presentation/cbr_conversion_page.dart';
 import '../features/library/domain/library_item.dart';
 import '../features/audio/presentation/audiobook_player_page.dart';
+import '../features/audio/presentation/audiobooks_page.dart';
 import '../features/profile/presentation/profile_page.dart';
-import '../../../core/storage/local_storage_service.dart';
+import '../features/profile/presentation/privacy_page.dart';
 import 'scaffold_with_nav.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -32,20 +29,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (authState.isLoading) return isSplash ? null : '/splash';
 
       final isLoggedIn = authState.value != null;
-      final isAuthRoute =
-          state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
+      final isAuthRoute = state.matchedLocation == '/login';
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
       if (isLoggedIn) {
-        final userId = authState.value!.id;
-        final hasSetup = LocalStorageService.hasDriveSetup(userId);
-
-        if (!hasSetup && state.matchedLocation != '/drive_setup') {
-          return '/drive_setup';
-        }
-
-        if (hasSetup && (isAuthRoute || isSplash)) {
+        if (isAuthRoute || isSplash) {
           return '/library';
         }
       }
@@ -54,14 +42,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/splash', builder: (context, state) => const SplashPage()),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-      GoRoute(
-        path: '/register',
-        builder: (context, state) => const RegisterPage(),
-      ),
-      GoRoute(
-        path: '/drive_setup',
-        builder: (context, state) => const DriveSetupPage(),
-      ),
       GoRoute(
         path: '/book/:id',
         builder: (context, state) {
@@ -127,16 +107,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const LibraryPage(),
           ),
           GoRoute(
-            path: '/sources',
-            builder: (context, state) => const SourcesPage(),
-          ),
-          GoRoute(
-            path: '/sources/add',
-            builder: (context, state) => const AddDriveSourcePage(),
+            path: '/audiobooks',
+            builder: (context, state) => const AudiobooksPage(),
           ),
           GoRoute(
             path: '/profile',
             builder: (context, state) => const ProfilePage(),
+          ),
+          GoRoute(
+            path: '/privacy',
+            builder: (context, state) => const PrivacyPage(),
           ),
         ],
       ),

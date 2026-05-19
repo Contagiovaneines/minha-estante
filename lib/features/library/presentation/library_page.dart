@@ -28,7 +28,6 @@ import 'library_view_filter.dart';
 import 'widgets/book_grid_card.dart';
 import 'widgets/continue_reading_card.dart';
 import 'widgets/library_item_cover.dart';
-import 'widgets/library_tabs.dart';
 
 class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
@@ -37,9 +36,7 @@ class LibraryPage extends ConsumerStatefulWidget {
   ConsumerState<LibraryPage> createState() => _LibraryPageState();
 }
 
-class _LibraryPageState extends ConsumerState<LibraryPage>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _LibraryPageState extends ConsumerState<LibraryPage> {
   final _searchController = TextEditingController();
   StreamSubscription<LocalFolderImportProgress>? _importProgressSub;
   StreamSubscription<NativeOpenedArchive>? _openedArchiveSub;
@@ -54,7 +51,6 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _searchController.addListener(() => setState(() {}));
     if (AndroidSafImportService.isSupported) {
       _importProgressSub = AndroidSafImportService.progressStream.listen(
@@ -78,7 +74,6 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     _importProgressSub?.cancel();
     _openedArchiveSub?.cancel();
     _searchController.dispose();
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -444,7 +439,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   }
 
   ItemType _itemTypeFromExtension(String extension) {
-    if (extension == 'mp3' || extension == 'm4a' || extension == 'aac') {
+    if (extension == 'mp3' ||
+        extension == 'm4a' ||
+        extension == 'm4b' ||
+        extension == 'aac' ||
+        extension == 'wav' ||
+        extension == 'opus') {
       return ItemType.audio;
     }
     if (extension == 'cbz' ||
@@ -483,7 +483,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     'txt',
     'mp3',
     'm4a',
+    'm4b',
     'aac',
+    'wav',
+    'opus',
   ];
 
   void _showDuplicateSnackBar(List<String> titles) {
@@ -499,8 +502,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     );
   }
 
-  void _showAddOptions(bool showSources) {
-    final isOnline = showSources && _tabController.index == 0;
+  bool get _showOnlineAddOption => false;
+
+  void _showAddOptions() {
+    final isOnline = _showOnlineAddOption;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface,
@@ -579,13 +584,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).value;
     final libraryState = ref.watch(libraryControllerProvider);
-    final showSources =
-        user != null && LocalStorageService.isDriveEnabled(user.id);
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
-      drawer: _buildDrawer(context, showSources),
+      drawer: _buildDrawer(context),
       body: SafeArea(
         child: Stack(
           children: [
@@ -593,21 +596,16 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
               loading: () =>
                   const LoadingView(message: 'Carregando biblioteca...'),
               error: (e, _) => Center(child: Text('Erro: $e')),
-              data: (items) => _buildContent(
-                context,
-                user?.id,
-                user?.name ?? '',
-                items,
-                showSources,
-              ),
+              data: (items) =>
+                  _buildContent(context, user?.id, user?.name ?? '', items),
             ),
             if (_isLocalImporting) _buildImportOverlay(),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddOptions(showSources),
-        tooltip: 'Adicionar fonte, pasta ou arquivo',
+        onPressed: _showAddOptions,
+        tooltip: 'Adicionar pasta ou arquivo',
         child: const Icon(Icons.add_rounded),
       ),
     );
@@ -792,15 +790,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     String? userId,
     String userName,
     List<LibraryItem> items,
-    bool showSources,
   ) {
     final query = _searchController.text;
     final visibleItems = items
         .where((item) => _filter.matches(item))
         .where((item) => itemMatchesSearch(item, query))
-        .toList();
-    final onlineItems = visibleItems
-        .where((item) => item.origin == ItemOrigin.online)
         .toList();
     final localItems = visibleItems
         .where((item) => item.origin == ItemOrigin.local)
@@ -832,31 +826,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
               ),
             ),
           ),
-        if (showSources) ...[
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: LibraryTabs(controller: _tabController),
-            ),
-          ),
-          SliverFillRemaining(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildGrid(context, onlineItems, isOnline: true),
-                _filter == LibraryViewFilter.all
-                    ? _buildCollections(context, localItems)
-                    : _buildGrid(context, localItems, isOnline: false),
-              ],
-            ),
-          ),
-        ] else ...[
-          SliverFillRemaining(
-            child: _filter == LibraryViewFilter.all
-                ? _buildCollections(context, localItems)
-                : _buildGrid(context, localItems, isOnline: false),
-          ),
-        ],
+        SliverFillRemaining(
+          child: _filter == LibraryViewFilter.all
+              ? _buildCollections(context, localItems)
+              : _buildGrid(context, localItems, isOnline: false),
+        ),
       ],
     );
   }
@@ -1024,7 +998,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     );
   }
 
-  Widget _buildDrawer(BuildContext context, bool showSources) {
+  Widget _buildDrawer(BuildContext context) {
     return Drawer(
       backgroundColor: AppColors.surface,
       child: SafeArea(
@@ -1052,15 +1026,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
                 context.go('/library');
               },
             ),
-            if (showSources)
-              _DrawerTile(
-                icon: Icons.cloud_rounded,
-                label: 'Fontes online',
-                onTap: () {
-                  Navigator.pop(context);
-                  context.go('/sources');
-                },
-              ),
+            _DrawerTile(
+              icon: Icons.headphones_rounded,
+              label: 'Audiobooks',
+              onTap: () {
+                Navigator.pop(context);
+                context.go('/audiobooks');
+              },
+            ),
             _DrawerTile(
               icon: Icons.sync_rounded,
               label: 'Sincronizar pastas',

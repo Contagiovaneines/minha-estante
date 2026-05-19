@@ -5,13 +5,11 @@ import '../constants/app_colors.dart';
 class AppBottomNav extends StatelessWidget {
   final int currentIndex;
   final void Function(int) onTap;
-  final bool showSources;
 
   const AppBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
-    this.showSources = true,
   });
 
   @override
@@ -34,23 +32,22 @@ class AppBottomNav extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _NavItem(
-                icon: Icons.menu_book_rounded,
+                icon: Icons.library_books_rounded,
                 label: 'Biblioteca',
                 isActive: currentIndex == 0,
                 onTap: () => onTap(0),
               ),
-              if (showSources)
-                _NavItem(
-                  icon: Icons.cloud_outlined,
-                  label: 'Fontes',
-                  isActive: currentIndex == 1,
-                  onTap: () => onTap(1),
-                ),
+              _NavItem(
+                icon: Icons.headphones_rounded,
+                label: 'Audiobooks',
+                isActive: currentIndex == 1,
+                onTap: () => onTap(1),
+              ),
               _NavItem(
                 icon: Icons.person_outline_rounded,
                 label: 'Perfil',
-                isActive: currentIndex == (showSources ? 2 : 1),
-                onTap: () => onTap(showSources ? 2 : 1),
+                isActive: currentIndex == 2,
+                onTap: () => onTap(2),
               ),
             ],
           ),

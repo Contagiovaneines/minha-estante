@@ -1,47 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/widgets/app_bottom_nav.dart';
 
-import '../../features/auth/presentation/auth_controller.dart';
-import '../../core/storage/local_storage_service.dart';
-
-class ScaffoldWithNav extends ConsumerWidget {
+class ScaffoldWithNav extends StatelessWidget {
   final Widget child;
   const ScaffoldWithNav({super.key, required this.child});
 
-  int _locationToIndex(String location, bool showSources) {
+  int _locationToIndex(String location) {
     if (location.startsWith('/library')) return 0;
-    if (location.startsWith('/sources')) return showSources ? 1 : 0;
-    if (location.startsWith('/profile')) return showSources ? 2 : 1;
+    if (location.startsWith('/audiobooks')) return 1;
+    if (location.startsWith('/profile') || location.startsWith('/privacy')) {
+      return 2;
+    }
     return 0;
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    final user = ref.watch(authControllerProvider).value;
-    final showSources =
-        user != null && LocalStorageService.isDriveEnabled(user.id);
-    final currentIndex = _locationToIndex(location, showSources);
+    final currentIndex = _locationToIndex(location);
 
     return Scaffold(
       body: child,
       bottomNavigationBar: AppBottomNav(
         currentIndex: currentIndex,
-        showSources: showSources,
         onTap: (index) {
-          if (!showSources && index == 1) {
-            context.go('/profile');
-            return;
-          }
           switch (index) {
             case 0:
               context.go('/library');
               break;
             case 1:
-              context.go('/sources');
+              context.go('/audiobooks');
               break;
             case 2:
               context.go('/profile');

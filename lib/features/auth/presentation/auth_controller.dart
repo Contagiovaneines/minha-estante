@@ -19,6 +19,12 @@ class AuthController extends AsyncNotifier<AppUser?> {
     return repo.getCurrentUser();
   }
 
+  Future<void> enterAsGuest() async {
+    final repo = ref.read(authRepositoryProvider);
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(repo.enterAsGuest);
+  }
+
   Future<void> login({required String email, required String password}) async {
     final repo = ref.read(authRepositoryProvider);
     state = const AsyncLoading();

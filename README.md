@@ -3,319 +3,260 @@
 <div align="center">
   <img src="web/icons/Icon-192.png" width="96" alt="Icone do app Minha Estante">
 
-  <p><strong>Biblioteca digital pessoal feita em Flutter para organizar, ler e ouvir arquivos locais e links publicos.</strong></p>
+  <p><strong>Biblioteca digital pessoal feita em Flutter para organizar, ler e ouvir arquivos locais.</strong></p>
 
   <p>
     <img alt="Flutter" src="https://img.shields.io/badge/Flutter-Android%20first-02569B?logo=flutter&logoColor=white">
     <img alt="Dart" src="https://img.shields.io/badge/Dart-3.11+-0175C2?logo=dart&logoColor=white">
     <img alt="Storage" src="https://img.shields.io/badge/Storage-Hive%20local-8A2BE2">
+    <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
     <img alt="Status" src="https://img.shields.io/badge/status-em%20desenvolvimento-f0ad4e">
   </p>
 </div>
 
 ## Visao Geral
 
-O **Minha Estante** e um app de biblioteca pessoal. Ele cataloga arquivos do celular e links publicos do Google Drive, separa a colecao entre itens locais e online, salva progresso de leitura/audio e abre cada tipo de conteudo no leitor mais adequado.
+O **Minha Estante** e um app de biblioteca pessoal. O app organiza arquivos do celular, salva progresso de leitura/audio e abre cada item no leitor ou player adequado.
 
-O foco atual e Android real. O projeto tambem possui estrutura padrao Flutter para iOS e Web, mas as partes mais especificas de importacao local, SAF e conversao de CBR foram pensadas principalmente para Android.
+O foco atual e Android. iOS, Web, Windows, macOS e Linux existem pela estrutura padrao do Flutter, mas os fluxos principais foram pensados e testados primeiro para Android.
 
-## O Que O App Faz
+## Estado Atual Da Analise
 
-- Organiza biblioteca por itens locais e online.
-- Adiciona arquivos avulsos do celular.
-- Importa pastas locais usando Storage Access Framework no Android.
-- Adiciona links publicos individuais do Google Drive sem API key.
-- Rejeita links de pasta do Drive sem API key, porque a listagem segura de pastas publicas exige Drive API.
-- Le PDF local ou remoto.
-- Le EPUB com leitor interno.
-- Le HQ/Manga em CBZ/ZIP e converte CBR/RAR para CBZ quando possivel.
-- Executa OCR em paginas de HQ/Manga e traduz texto estrangeiro para pt-BR.
-- Reproduz arquivos de audio simples com progresso salvo.
-- Salva favoritos, status de leitura e ultimo item aberto.
-- Mantem dados localmente com Hive.
+Analise executada em 2026-05-19:
 
-## Imagens E Fluxos
+- `flutter analyze` passou sem problemas.
+- `flutter test` passou com 3 testes.
+- `flutter build appbundle --release` passou e gerou um AAB de release.
+- O app ja funciona como biblioteca local para desenvolvimento e testes.
+- O AAB ainda nao esta pronto para publicacao real porque o release usa assinatura de debug.
+- O fluxo visivel nao usa Google Drive, API do Google ou login online.
+- Ainda existe codigo legado de Drive no repositorio; ele nao aparece na navegacao atual, mas deve ser removido ou isolado antes de uma versao publica limpa.
 
-Os diagramas abaixo usam Mermaid e renderizam diretamente no GitHub/GitLab. O icone do app usado no topo vem de `web/icons/Icon-192.png`.
+## Fluxo Atual Do App
 
-### Mapa Geral Do App
+1. O app abre na tela inicial.
+2. A tela inicial mostra **Entrar** e **Contribuir com PIX**.
+3. Ao tocar em **Entrar**, o usuario acessa um perfil local.
+4. O app nao restaura sessao automaticamente ao reabrir. Se o app for fechado e nao houver reproducao em segundo plano, ele volta para a tela inicial.
+5. A navegacao principal tem tres abas: **Biblioteca**, **Audiobooks** e **Perfil**.
+6. **Biblioteca** mostra livros, documentos, HQs, mangas e audios adicionados.
+7. **Audiobooks** mostra apenas itens de audio e permite adicionar novos arquivos de audio.
+8. **Perfil** mostra estatisticas locais, privacidade, contribuicao via PIX, edicao local do nome e a opcao de voltar para a tela inicial.
+
+## O Que Ja Foi Implementado
+
+- Tela inicial local com botao **Entrar**.
+- Botao **Contribuir com PIX** usando a chave `giovaneinescontato@gmail.com`.
+- Perfil local sem cadastro, senha, backend ou autenticacao online.
+- Biblioteca local com Hive.
+- Importacao de arquivos avulsos.
+- Importacao de pastas locais no Android via Storage Access Framework.
+- Abas principais: Biblioteca, Audiobooks e Perfil.
+- Tela de Privacidade dentro do app.
+- Leitor de PDF.
+- Leitor de EPUB.
+- Leitor de TXT/documento simples.
+- Leitor de HQ/Manga para CBZ/ZIP.
+- Conversao parcial de CBR/RAR para CBZ.
+- OCR em HQ/Manga com ML Kit.
+- Traducao de texto reconhecido usando servico externo via HTTP.
+- Player de audio/audiobook.
+- Audio em segundo plano e tela bloqueada com notificacao de midia.
+- Salvamento de progresso de audio.
+- Suporte de audio para `mp3`, `m4a`, `m4b`, `aac`, `wav` e `opus`.
+- Favoritos, status de leitura e progresso por item.
+- Licenca MIT criada no arquivo `LICENSE`.
+
+## Mapa Do Fluxo
 
 ```mermaid
 flowchart TD
-    A[Login ou cadastro local] --> B[Configuracao inicial]
+    A[Tela inicial] --> B[Entrar no perfil local]
+    A --> PIX[Contribuir com PIX]
     B --> C[Biblioteca]
-    C --> D[Adicionar arquivo local]
-    C --> E[Adicionar pasta local]
-    C --> F[Adicionar link publico do Drive]
-    C --> G[Detalhes do item]
+    B --> D[Audiobooks]
+    B --> E[Perfil]
 
-    G --> H{Tipo do item}
-    H -->|PDF| I[Leitor PDF]
-    H -->|EPUB| J[Leitor EPUB]
-    H -->|HQ/Manga| K[Leitor HQ]
-    H -->|Audio| L[Player de audio]
-    H -->|TXT/DOC/MOBI/AZW/KFX| M[Tela de documento ou aviso seguro]
+    C --> F[Adicionar arquivo]
+    C --> G[Adicionar pasta local]
+    C --> H[Detalhes do item]
+    D --> I[Adicionar audio]
+    D --> J[Player de audiobook]
 
-    K --> N[OCR ML Kit]
-    N --> O{Idioma detectado}
-    O -->|pt-BR| P[Nao traduz]
-    O -->|desconhecido| Q[Nao traduz]
-    O -->|estrangeiro confiavel| R[MyMemory para pt-BR]
+    H --> K{Tipo do item}
+    K -->|PDF| L[Leitor PDF]
+    K -->|EPUB| M[Leitor EPUB]
+    K -->|TXT/DOC| N[Leitor documento/aviso]
+    K -->|CBZ/ZIP/CBR/RAR| O[Leitor HQ]
+    K -->|Audio| J
+    K -->|MOBI/AZW/KFX/DOCX| P[Formato catalogado, leitor pendente]
+
+    O --> Q[OCR]
+    Q --> R[Traducao]
 ```
 
-### Fluxo De Link Publico Do Google Drive
+## Formatos
 
-```mermaid
-flowchart TD
-    A[Usuario cola link publico] --> B{E link do Drive?}
-    B -->|Nao| C[Erro amigavel]
-    B -->|Sim| D{E pasta?}
-    D -->|Sim| E[Erro: pasta precisa de API key]
-    D -->|Nao| F[Extrai fileId]
-    F --> G{Ja existe tarefa ou fonte?}
-    G -->|Sim| H[Reutiliza status ou informa duplicidade]
-    G -->|Nao| I[Cria DriveImportTask em memoria]
-    I --> J[Verifica arquivo]
-    J --> K{Formato}
-    K -->|PDF/EPUB/Audio| L[Usa remoteUrl]
-    K -->|CBZ/CBR/HQ| M[Baixa para cache local]
-    K -->|Nao suportado| N[Erro amigavel]
-    L --> O[Adiciona fonte e item]
-    M --> O
-    O --> P[Concluido]
-```
-
-### Selecao De Leitor
-
-```mermaid
-flowchart LR
-    A[LibraryItem] --> B{ItemType}
-    B -->|pdf| C[/reader/:id]
-    B -->|ebook EPUB| D[/epub/:id]
-    B -->|ebook MOBI/AZW/KFX| E[/document/:id com aviso]
-    B -->|hq| F[/hq/:id]
-    B -->|audio| G[/audio/:id]
-    B -->|text/document| H[/document/:id]
-```
-
-### OCR E Traducao
-
-```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant HQ as HqReaderPage
-    participant Overlay as TranslationOverlay
-    participant OCR as OcrService
-    participant ML as Google ML Kit
-    participant T as TranslationService
-    participant API as MyMemory
-
-    U->>HQ: toca em Traduzir pagina
-    HQ->>Overlay: abre overlay
-    Overlay->>OCR: processPage(imagem, idioma)
-    OCR->>ML: processImage no main isolate
-    ML-->>OCR: blocos e idiomas reconhecidos
-    OCR->>OCR: decide se deve traduzir
-    alt Portugues ou idioma desconhecido
-        OCR-->>Overlay: sem traducao
-    else Idioma estrangeiro confiavel
-        OCR->>T: translateBatch
-        T->>API: textos para pt-BR
-        API-->>T: traducoes
-        T-->>OCR: traducoes
-        OCR-->>Overlay: blocos traduzidos
-    end
-```
-
-## Formatos Suportados
-
-| Formato | Entrada atual | Leitura atual | Observacoes |
+| Formato | Entrada atual | Leitura/reproducao atual | Estado |
 | --- | --- | --- | --- |
-| PDF | Local e Drive publico individual | Sim | Leitor com `pdfrx`, aceita arquivo local e URL remota. |
-| EPUB | Local e Drive publico individual | Sim | Leitor interno com `flutter_epub_viewer`, progresso salvo por CFI/progresso. |
-| MOBI, AZW, AZW3, KFX | Local e Drive publico individual | Parcial | Entra na estante como ebook, mas deve ser convertido para EPUB para leitura interna. |
-| CBZ, ZIP | Local e Drive publico individual | Sim | Extraido em cache e exibido como paginas de imagem. |
-| CBR, RAR | Local e Drive publico individual | Sim, quando conversao funciona | Converte para CBZ no cache. Arquivos protegidos por senha, RAR5 ou muito grandes podem exigir conversao manual. |
-| CB7, CBT, CBA | Catalogacao local parcial | Limitado | Reconhecidos como HQ em partes do fluxo local, mas leitor/conversor dedicado ainda precisa evoluir. |
-| TXT | Local | Sim | Leitura simples com texto selecionavel. |
-| DOC, DOCX | Local | Nao | Catalogados com aviso seguro; precisam de leitor dedicado futuro. |
-| MP3, M4A, AAC | Local e Drive publico individual | Sim | Player simples com `just_audio` e progresso salvo. |
-| M4B, WAV, OPUS | Principalmente Drive publico individual | Parcial | O servico do Drive tenta reconhecer por extensao/MIME; suporte final depende do codec/plataforma e do fluxo de importacao. |
+| PDF | Local | Sim | Leitor com progresso. TTS ainda pendente. |
+| EPUB | Local | Sim | Leitor interno. TTS ainda pendente. |
+| TXT | Local | Sim | Leitura simples. Bom candidato para primeiro TTS. |
+| CBZ, ZIP | Local | Sim | Abre como HQ/Manga. |
+| CBR, RAR | Local | Parcial | Tenta converter para CBZ. Pode falhar em RAR5, arquivo com senha ou arquivo grande. |
+| CB7, CBT, CBA | Local/catalogacao | Limitado | Detectado em partes do app, mas ainda precisa extrator/conversor dedicado. |
+| MOBI, AZW, AZW3 | Local/catalogacao | Nao | Precisa conversao para EPUB ou leitor dedicado. Nao prometer suporte a DRM. |
+| KFX | Local/catalogacao | Nao | Deve continuar como nao suportado ate existir estrategia clara. |
+| DOC, DOCX | Local/catalogacao | Parcial/nao | DOC/TXT abre como documento simples quando possivel; DOCX precisa leitor/conversor com fidelidade. |
+| MP3, M4A, M4B, AAC, WAV, OPUS | Local | Sim/parcial | Player usa `just_audio`; suporte final depende do codec do aparelho. |
+| Pasta de imagens | Pasta local | Nao consolidado | Melhor implementar como modo HQ por pasta, agrupando JPG/PNG/WebP. |
 
-## Como Funciona Por Dentro
+## Leitura E Audio
 
-### Camadas Principais
+Hoje existem dois caminhos diferentes:
 
-```text
-lib/
-  app/                         Rotas, tema e scaffold principal
-  core/
-    constants/                 Cores e strings globais
-    storage/                   Hive, SAF e resolucao de arquivos
-    utils/                     Parsers e formatadores
-    widgets/                   Componentes reutilizaveis
-  features/
-    auth/                      Login/cadastro local e setup inicial
-    library/                   Biblioteca, colecoes, progresso e importacao local
-    sources/                   Fontes online e links publicos do Drive
-    reader/                    PDF, EPUB, HQ, OCR e traducao
-    audio/                     Player de audio
-    book_detail/               Tela de detalhes e acao principal
-    profile/                   Perfil e configuracoes
-```
+- **Ler:** usado para PDF, EPUB, TXT, documentos e HQs.
+- **Ouvir:** usado para arquivos de audio/audiobook.
 
-### Estado E Persistencia
+O botao **Ouvir** para livros de texto ainda nao deve ser tratado como pronto, porque falta TTS. Para virar recurso real, o app precisa extrair texto, separar em blocos pequenos, tocar com TTS, salvar progresso separado da leitura visual e lidar com segundo plano.
 
-- **Riverpod** controla estado de telas, biblioteca, fontes e tarefas em memoria.
-- **Hive** salva usuarios locais, itens da biblioteca, fontes, progresso e preferencias.
-- **LocalStorageService** centraliza o acesso aos boxes do Hive.
-- **LibraryController** carrega, adiciona, remove, marca favorito/status e salva progresso.
-- **SourcesController** gerencia fontes online.
-- **DriveImportController** mantem tarefas de importacao do Drive vivas enquanto o app esta aberto.
+## O Que Falta Para Ouvir Livros Com TTS
 
-### Android Nativo
+1. Criar uma camada separada de TTS, sem misturar com o player de audiobook real.
+2. Extrair texto por formato:
+   - EPUB: texto por capitulo.
+   - TXT: conteudo direto do arquivo.
+   - PDF com texto: extracao por pagina.
+   - PDF escaneado/HQ/Manga: OCR por pagina.
+3. Normalizar o texto:
+   - remover cabecalhos e rodapes repetidos;
+   - preservar ordem correta;
+   - separar frases e blocos curtos.
+4. Integrar TTS local, por exemplo `flutter_tts`, para um MVP offline.
+5. Salvar progresso de audio/TTS separado do progresso de leitura visual.
+6. Criar tela **Ouvir livro** com play/pause, voltar/avancar, velocidade, voz, marcador e continuar de onde parou.
+7. Testar segundo plano, tela bloqueada, fone Bluetooth, chamadas, pausas do sistema e notificacao de midia.
 
-O arquivo `android/app/src/main/kotlin/com/minhaestante/minha_estante/MainActivity.kt` expoe canais nativos para:
+## Audiobooks
 
-- selecionar e importar pastas via Android Storage Access Framework;
-- copiar arquivos `content://` para cache quando necessario;
-- converter CBR/RAR para CBZ usando rotina nativa;
-- receber arquivos de HQ abertos a partir de outros apps.
+O app ja tem uma area de audiobooks. Ela permite adicionar audio local, listar audiobooks e continuar de onde parou.
 
-O `AndroidManifest.xml` declara permissoes de leitura, filtros para abrir arquivos de HQ e dependencias do ML Kit OCR.
+O que ainda falta melhorar:
+
+- Ler capitulos internos de M4B.
+- Exibir duracao real antes de abrir o player.
+- Criar fila de reproducao.
+- Criar bookmarks.
+- Separar progresso por capitulo.
+- Melhorar busca/filtro por autor, titulo, duracao e status.
+- Testar comportamento longo em segundo plano em aparelho real.
 
 ## Google Drive
 
-O app trabalha com **links publicos individuais** do Google Drive sem API key. O fluxo atual usa o ID do arquivo para montar uma URL de download e validar o conteudo.
+O Google Drive foi removido do fluxo visivel. A decisao faz sentido para uma primeira publicacao porque reduz dependencia de API, OAuth, chaves, revisao de escopos e explicacoes de privacidade.
 
-### O Que Funciona
+Estado atual:
 
-- Link individual de arquivo publico.
-- PDF remoto aberto por URL.
-- EPUB remoto aberto por URL.
-- Audio remoto aberto por URL.
-- HQ baixada para cache local antes de abrir.
-- Tarefa de importacao em memoria, com status em Fontes.
-- Bloqueio de duplicidade por `fileId`.
+- Nao existe aba de Drive na navegacao principal.
+- Nao existe setup obrigatorio de Drive no fluxo atual.
+- O perfil nao pede Drive.
+- Codigo antigo de fontes/Drive ainda existe em `lib/features/sources`, `lib/core/utils/drive_link_parser.dart` e alguns textos legados.
 
-### Limite Atual
+Recomendacao para a proxima versao: remover o codigo legado de Drive de vez ou deixar totalmente isolado atras de uma flag interna. Para Play Store, quanto menos codigo e permissao sem uso, melhor.
 
-Links de pasta publica nao sao listados sem Drive API. O app deve mostrar uma mensagem segura:
+## Login
 
-> Pastas do Drive precisam de API key para listar arquivos. Adicione arquivos individualmente.
+O app nao tem login real. O fluxo atual e uma entrada local.
 
-Esse comportamento e intencional. A listagem de pastas publicas de forma robusta deve ser feita futuramente com Google Drive API, permissao adequada e tratamento de paginacao/erros.
+Isso e bom para a Play Store se o app for descrito como biblioteca local, porque evita exigencias de conta, recuperacao de senha, backend, exclusao de conta e politicas de autenticacao.
 
-## Leitores
+Se no futuro houver conta online, sincronizacao ou backup em nuvem, sera necessario implementar:
 
-### PDF
+- login real;
+- recuperacao de acesso;
+- exclusao de conta;
+- politica de privacidade publica;
+- seguranca de API;
+- criptografia e regras de retencao de dados.
 
-- Usa `pdfrx`.
-- Abre arquivo local ou URL remota.
-- Salva pagina atual, total e percentual.
-- Tem modo claro/escuro, orientacao horizontal/vertical e ir para pagina.
+## Play Store E Seguranca
 
-### EPUB
+Pontos que precisam ser resolvidos antes de publicar:
 
-- Usa `flutter_epub_viewer`.
-- Abre arquivo local ou URL remota.
-- Salva progresso por CFI e percentual.
-- Permite tema claro/escuro, tamanho da fonte e navegacao por toque.
+- **Assinatura real:** o release ainda usa assinatura de debug em `android/app/build.gradle.kts`. Gere uma upload key, configure `android/key.properties` local e ative Play App Signing.
+- **Application ID:** confirme se `com.minhaestante.minha_estante` sera o pacote definitivo. Trocar depois de publicar significa criar outro app.
+- **Target SDK:** em 2026-05-19, a exigencia atual do Google Play para novos apps e updates e Android 15/API 35 ou superior. Confirme o valor final gerado pelo Flutter antes de enviar.
+- **Politica de privacidade publica:** a tela interna ajuda, mas a Play Store pede uma URL publica.
+- **Data Safety:** declarar dados locais, arquivos escolhidos pelo usuario, texto enviado para traducao/OCR quando usado, e que nao ha conta online no fluxo atual.
+- **Permissoes Android:** revisar se `READ_MEDIA_AUDIO` e realmente necessario quando o app usa seletor de arquivos/SAF. Reduzir permissao reduz risco de revisao.
+- **Foreground service:** justificar uso de servico de midia para audiobook em segundo plano.
+- **HTTPS:** manter `usesCleartextTraffic=false` e usar apenas servicos HTTPS em producao.
+- **Segredos:** nunca commitar keystore, `key.properties`, tokens, API keys ou credenciais.
+- **Testes em aparelho real:** validar importacao local, SAF, CBR/RAR, OCR, traducao, audio em segundo plano, tela bloqueada e notificacao.
+- **Textos e encoding:** corrigir mojibake em arquivos do app antes da publicacao.
 
-### HQ/Manga
+## Roadmap Da Proxima Versao
 
-- Usa `archive` para CBZ/ZIP.
-- Usa conversao CBR/RAR para CBZ em cache quando necessario.
-- Renderiza paginas como imagens.
-- Permite zoom, troca de pagina e overlay de traducao.
+### Prioridade Alta
 
-### Audio
+- Configurar assinatura release real.
+- Criar e publicar politica de privacidade externa.
+- Remover ou isolar totalmente o codigo legado de Drive.
+- Corrigir textos com encoding quebrado.
+- Revisar permissoes Android.
+- Testar AAB em aparelho real via Play Console/Internal testing.
+- Adicionar testes para deteccao de formatos, importacao local e classificacao de itens.
 
-- Usa `just_audio`.
-- Abre arquivo local ou URL remota.
-- Salva posicao e percentual.
-- Permite play/pause, avancar/voltar 15 segundos e alterar velocidade.
-- Ainda nao toca em background real com tela bloqueada; isso esta no roadmap.
+### Prioridade Media
 
-## OCR E Traducao
+- Melhorar area de audiobooks com duracao, capitulos M4B, bookmarks e fila.
+- Melhorar notificacao de midia e retomada de audio.
+- Extrair metadados de EPUB/PDF/audio: capa, autor, paginas, capitulos, duracao, codec e tamanho.
+- Criar busca por titulo, autor, tipo, status e colecao.
+- Implementar backup/exportacao local da biblioteca.
+- Tratar pasta de imagens como HQ/Manga.
 
-O OCR usa `google_mlkit_text_recognition` para reconhecer texto em paginas de HQ/Manga. A traducao usa MyMemory quando o texto detectado parece ser de idioma estrangeiro confiavel.
+### Prioridade Baixa/Futura
 
-Regras atuais de custo e seguranca:
+- Botao **Ouvir** abaixo de **Ler** para EPUB/TXT/PDF quando TTS estiver implementado.
+- MVP de TTS local primeiro para TXT e EPUB.
+- TTS para PDF com texto.
+- OCR + TTS para PDF escaneado, HQ e Manga.
+- Leitor/conversor para MOBI/AZW/AZW3 sem DRM.
+- Tratamento claro para KFX como formato nao suportado.
+- Leitor/conversor confiavel para DOCX.
+- Backup criptografado ou sincronizacao em nuvem, somente se houver politica de privacidade e seguranca prontas.
 
-- Texto reconhecido como portugues/pt-BR nao chama traducao.
-- Idioma desconhecido, vazio ou indefinido nao chama traducao.
-- Apenas idioma estrangeiro confiavel chama `translateBatch`.
-- Erros tecnicos ficam no log/debug; o usuario recebe mensagem amigavel.
+## Comandos De Desenvolvimento
 
-## Limitacoes Conhecidas
-
-- O login/cadastro e local/mock; nao ha backend real de autenticacao.
-- Fontes do Drive usam links publicos individuais; pastas precisam de Drive API em etapa futura.
-- As tarefas de importacao do Drive sobrevivem a navegacao dentro do app, mas nao a fechamento/morte do processo.
-- MOBI/AZW/AZW3/KFX entram na estante, mas nao possuem leitor interno.
-- DOC/DOCX entram na estante, mas nao possuem leitor dedicado.
-- Audio em segundo plano real ainda nao esta implementado.
-- CBR/RAR pode falhar em arquivos com senha, RAR5 ou muito grandes.
-- OCR/traducao depende da qualidade da imagem, idioma escolhido e limite do servico externo de traducao.
-
-## Roadmap E Ideias Futuras
-
-### Curto Prazo
-
-- Persistir historico das tarefas de importacao do Drive.
-- Melhorar mensagens de erro por formato e permissao.
-- Adicionar screenshots reais do app em `docs/screenshots/`.
-- Revisar suporte local para M4B, WAV e OPUS no seletor de arquivos.
-- Criar testes unitarios para parser de links do Drive e deteccao de formatos.
-
-### Medio Prazo
-
-- Implementar Google Drive API opcional para listar pastas publicas e sincronizar alteracoes.
-- Extrair metadados reais de EPUB/PDF/audio: autor, capa, duracao e capitulos.
-- Melhorar leitor de HQ com modo manga, dupla pagina e ordenacao configuravel.
-- Expandir suporte de HQ para CB7, CBT e CBA.
-- Adicionar TTS para EPUB e PDF com texto selecionavel.
-- Separar progresso visual de leitura e progresso de audio/TTS.
-
-### Longo Prazo
-
-- Audio em background real com `audio_service`, `audio_session`, notificacao de midia e foreground service no Android.
-- Audiobook completo com capitulos, fila, bookmarks e controles na tela bloqueada.
-- OCR + TTS para HQ/Manga, lendo baloes da pagina atual.
-- Sincronizacao em nuvem ou backup/exportacao da biblioteca.
-- Busca full-text em EPUB/PDF/TXT.
-- Leitor dedicado para DOC/DOCX ou conversao segura para formatos legiveis.
-
-## Setup De Desenvolvimento
-
-### Requisitos
-
-- Flutter SDK compativel com Dart `^3.11.3`.
-- Android Studio ou Android SDK configurado.
-- Dispositivo/emulador Android para validar SAF, ML Kit, Drive e audio.
-
-### Instalar Dependencias
+Instalar dependencias:
 
 ```bash
 flutter pub get
 ```
 
-### Rodar O App
+Rodar o app:
 
 ```bash
 flutter run
 ```
 
-### Validar Qualidade
+Validar qualidade:
 
 ```bash
 dart format .
 flutter analyze
 flutter test
-flutter build apk --debug
-flutter build apk --release
+flutter build appbundle --release
 ```
+
+Gerar uma upload key para publicacao Android:
+
+```bash
+keytool -genkey -v -keystore "$env:USERPROFILE\upload-keystore.jks" -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+Crie `android/key.properties` localmente e nao comite esse arquivo. O `.gitignore` ja bloqueia `android/key.properties`, `*.jks` e `*.keystore`.
 
 ## Principais Dependencias
 
@@ -324,30 +265,29 @@ flutter build apk --release
 | `flutter_riverpod` | Estado global e controllers. |
 | `go_router` | Rotas e navegacao. |
 | `hive` / `hive_flutter` | Persistencia local. |
-| `file_picker` | Selecao de arquivos/pastas quando aplicavel. |
+| `file_picker` | Selecao de arquivos e pastas quando aplicavel. |
 | `pdfrx` | Renderizacao de PDF. |
 | `flutter_epub_viewer` | Leitor EPUB. |
 | `archive` / `rar` | Leitura/conversao de arquivos de HQ. |
 | `google_mlkit_text_recognition` | OCR em paginas de HQ/Manga. |
-| `http` | Drive publico e traducao MyMemory. |
+| `http` | Chamadas externas, como traducao. |
 | `just_audio` | Player de audio. |
+| `just_audio_background` | Audio em segundo plano com notificacao. |
+| `audio_service` | Servico de midia usado indiretamente pelo background audio. |
+| `audio_session` | Sessao de audio e integracao com o sistema. |
 
 ## Referencias Tecnicas
 
-- [Flutter documentation](https://docs.flutter.dev/)
-- [Riverpod](https://riverpod.dev/)
-- [go_router no pub.dev](https://pub.dev/packages/go_router)
-- [Hive no pub.dev](https://pub.dev/packages/hive)
-- [pdfrx no pub.dev](https://pub.dev/packages/pdfrx)
-- [flutter_epub_viewer no pub.dev](https://pub.dev/packages/flutter_epub_viewer)
-- [just_audio no pub.dev](https://pub.dev/packages/just_audio)
-- [google_mlkit_text_recognition no pub.dev](https://pub.dev/packages/google_mlkit_text_recognition)
+- [Flutter: Build and release an Android app](https://docs.flutter.dev/deployment/android)
+- [Google Play target API level requirement](https://developer.android.com/google/play/requirements/target-sdk)
+- [Google Play Data safety](https://support.google.com/googleplay/android-developer/answer/10787469)
+- [Google Play User Data policy](https://support.google.com/googleplay/android-developer/answer/10144311)
+- [Google Play account deletion requirements](https://support.google.com/googleplay/android-developer/answer/13327111)
+- [Android cleartext communications](https://developer.android.com/privacy-and-security/risks/cleartext-communications)
 - [Android Storage Access Framework](https://developer.android.com/guide/topics/providers/document-provider)
-- [Google Drive API](https://developers.google.com/workspace/drive/api/guides/about-sdk)
-- [MyMemory API](https://mymemory.translated.net/doc/spec.php)
 - [audio_service no pub.dev](https://pub.dev/packages/audio_service)
 - [audio_session no pub.dev](https://pub.dev/packages/audio_session)
 
-## Observacao De Produto
+## Licenca
 
-O projeto ainda esta em desenvolvimento. A prioridade tecnica atual e manter uma base Android estavel para leitura local, links publicos individuais, EPUB, HQ/Manga, OCR/traducao e audio simples. Recursos como Drive API completo, TTS e audio em background devem entrar em fases separadas para evitar misturar fluxo de biblioteca, leitores e servicos Android de longa duracao.
+Este projeto esta licenciado sob a licenca MIT. Veja [LICENSE](LICENSE).

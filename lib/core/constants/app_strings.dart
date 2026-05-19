@@ -3,6 +3,7 @@ class AppStrings {
 
   static const String appName = 'Minha Estante';
   static const String appTagline = 'Sua biblioteca digital pessoal';
+  static const String pixKey = 'giovaneinescontato@gmail.com';
 
   static const String login = 'Entrar';
   static const String register = 'Cadastrar';

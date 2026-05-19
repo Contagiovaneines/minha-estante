@@ -53,6 +53,8 @@ dependencies:
   archive: ^4.0.7
   rar: ^0.3.0
   flutter_epub_viewer: ^1.2.8
+  just_audio_background: ^0.0.1-beta.17
+  audio_session: ^0.2.3
 
 dev_dependencies:
   flutter_test:

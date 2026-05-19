@@ -52,6 +52,14 @@ class LibraryController extends AsyncNotifier<List<LibraryItem>> {
     await refresh();
   }
 
+  Future<void> updateItem(LibraryItem item) async {
+    final user = ref.read(authControllerProvider).value;
+    if (user == null) return;
+    final repo = ref.read(libraryRepositoryProvider);
+    await repo.updateItem(user.id, item);
+    await refresh();
+  }
+
   Future<LocalFolderSyncResult?> addLocalFolder(String path) async {
     final user = ref.read(authControllerProvider).value;
     if (user == null) return null;

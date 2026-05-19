@@ -9,8 +9,8 @@ import 'auth_repository.dart';
 class MockAuthRepository implements AuthRepository {
   final _uuid = const Uuid();
   static const _demoUserId = 'demo_giovane';
-  static const _demoUserName = 'Giovane';
-  static const _demoUserEmail = 'giovane@gmail.com';
+  static const _demoUserName = 'Leitor';
+  static const _demoUserEmail = 'local@minha-estante.app';
   static const _demoUserPassword = '12345678';
 
   String _hashPassword(String password) {
@@ -32,6 +32,17 @@ class MockAuthRepository implements AuthRepository {
     );
 
     await LocalStorageService.saveUser(user.toJson());
+  }
+
+  @override
+  Future<AppUser> enterAsGuest() async {
+    await _ensureDemoUser();
+    await LocalStorageService.setCurrentUserId(null);
+    final userData = LocalStorageService.getUserById(_demoUserId);
+    if (userData == null) {
+      throw Exception('Nao foi possivel abrir o perfil local.');
+    }
+    return AppUser.fromJson(userData);
   }
 
   @override
@@ -90,11 +101,8 @@ class MockAuthRepository implements AuthRepository {
 
   @override
   Future<AppUser?> getCurrentUser() async {
-    final id = LocalStorageService.getCurrentUserId();
-    if (id == null) return null;
-    final userData = LocalStorageService.getUserById(id);
-    if (userData == null) return null;
-    return AppUser.fromJson(userData);
+    await LocalStorageService.setCurrentUserId(null);
+    return null;
   }
 
   @override

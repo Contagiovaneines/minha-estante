@@ -5,9 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
-import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.ryanheise.audioservice.AudioServiceActivity
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
@@ -21,7 +21,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import com.github.junrar.Archive
 
-class MainActivity : FlutterActivity() {
+class MainActivity : AudioServiceActivity() {
     private val channelName = "minha_estante/saf_import"
     private val archiveChannelName = "minha_estante/native_archive"
     private val pickFolderRequestCode = 8301
@@ -366,7 +366,10 @@ class MainActivity : FlutterActivity() {
             lower.endsWith(".txt") ||
             lower.endsWith(".mp3") ||
             lower.endsWith(".m4a") ||
+            lower.endsWith(".m4b") ||
             lower.endsWith(".aac") ||
+            lower.endsWith(".wav") ||
+            lower.endsWith(".opus") ||
             lower.endsWith(".cbz")
     }
 
