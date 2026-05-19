@@ -257,6 +257,17 @@ class _BookDetailView extends ConsumerWidget {
             label: Text(_primaryActionLabel),
           ),
         ),
+        if (_showListenButton) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => context.push('/listen/${item.id}'),
+              icon: const Icon(Icons.headphones_rounded, size: 20),
+              label: const Text('Ouvir'),
+            ),
+          ),
+        ],
         if (item.progress > 0) ...[
           const SizedBox(height: 10),
           SizedBox(
@@ -389,6 +400,21 @@ class _BookDetailView extends ConsumerWidget {
       return item.progress > 0 ? 'Continuar ouvindo' : 'Ouvir';
     }
     return item.progress > 0 ? AppStrings.continueReading : 'Ler';
+  }
+
+  bool get _showListenButton {
+    switch (item.type) {
+      case ItemType.pdf:
+        return true;
+      case ItemType.ebook:
+        return EbookFormatSupport.canReadInternally(item);
+      case ItemType.text:
+        return true;
+      case ItemType.audio:
+      case ItemType.hq:
+      case ItemType.document:
+        return false;
+    }
   }
 
   String get _restartActionLabel {

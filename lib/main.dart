@@ -16,7 +16,7 @@ void main() async {
     androidNotificationChannelDescription:
         'Reproducao de audiobooks em segundo plano',
     androidNotificationOngoing: true,
-    androidStopForegroundOnPause: false,
+    androidStopForegroundOnPause: true,
   );
 
   final appDocDir = await getApplicationDocumentsDirectory();

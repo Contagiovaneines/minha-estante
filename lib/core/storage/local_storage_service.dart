@@ -130,6 +130,25 @@ class LocalStorageService {
   static Future<void> setSetting(String key, String value) =>
       _settings.put(key, value);
 
+  static String _ttsProgressKey(String userId, String itemId) =>
+      'tts_progress_${userId}_$itemId';
+
+  static Future<void> saveTtsProgress(
+    String userId,
+    Map<String, dynamic> progress,
+  ) async {
+    await _settings.put(
+      _ttsProgressKey(userId, progress['itemId'] as String),
+      jsonEncode(progress),
+    );
+  }
+
+  static Map<String, dynamic>? getTtsProgress(String userId, String itemId) {
+    final raw = _settings.get(_ttsProgressKey(userId, itemId));
+    if (raw == null) return null;
+    return jsonDecode(raw) as Map<String, dynamic>;
+  }
+
   static String _lastOpenedItemKey(String userId) => 'last_opened_item_$userId';
 
   static Future<void> saveLastOpenedItemId(String userId, String itemId) async {
@@ -185,6 +204,12 @@ class LocalStorageService {
         .toList();
     for (final key in progressKeys) {
       await _progress.delete(key);
+    }
+    final ttsProgressKeys = _settings.keys
+        .where((k) => k.toString().startsWith('tts_progress_${userId}_'))
+        .toList();
+    for (final key in ttsProgressKeys) {
+      await _settings.delete(key);
     }
     await clearLastOpenedItemId(userId);
   }

@@ -56,6 +56,8 @@ Analise executada em 2026-05-19:
 - Leitor de PDF.
 - Leitor de EPUB.
 - Leitor de TXT/documento simples.
+- Modo **Ouvir livro** com TTS local para TXT, EPUB e PDF com texto selecionavel.
+- Progresso de TTS separado do progresso de leitura visual.
 - Leitor de HQ/Manga para CBZ/ZIP.
 - Conversao parcial de CBR/RAR para CBZ.
 - OCR em HQ/Manga com ML Kit.
@@ -90,6 +92,7 @@ flowchart TD
     K -->|CBZ/ZIP/CBR/RAR| O[Leitor HQ]
     K -->|Audio| J
     K -->|MOBI/AZW/KFX/DOCX| P[Formato catalogado, leitor pendente]
+    H -->|Ouvir PDF/EPUB/TXT| S[TTS local]
 
     O --> Q[OCR]
     Q --> R[Traducao]
@@ -99,9 +102,9 @@ flowchart TD
 
 | Formato | Entrada atual | Leitura/reproducao atual | Estado |
 | --- | --- | --- | --- |
-| PDF | Local | Sim | Leitor com progresso. TTS ainda pendente. |
-| EPUB | Local | Sim | Leitor interno. TTS ainda pendente. |
-| TXT | Local | Sim | Leitura simples. Bom candidato para primeiro TTS. |
+| PDF | Local | Sim | Leitor com progresso e TTS quando o PDF tem texto selecionavel. PDF escaneado ainda precisa OCR. |
+| EPUB | Local | Sim | Leitor interno e TTS por capitulos extraidos do EPUB. |
+| TXT | Local | Sim | Leitura simples e TTS local. |
 | CBZ, ZIP | Local | Sim | Abre como HQ/Manga. |
 | CBR, RAR | Local | Parcial | Tenta converter para CBZ. Pode falhar em RAR5, arquivo com senha ou arquivo grande. |
 | CB7, CBT, CBA | Local/catalogacao | Limitado | Detectado em partes do app, mas ainda precisa extrator/conversor dedicado. |
@@ -116,26 +119,17 @@ flowchart TD
 Hoje existem dois caminhos diferentes:
 
 - **Ler:** usado para PDF, EPUB, TXT, documentos e HQs.
-- **Ouvir:** usado para arquivos de audio/audiobook.
+- **Ouvir:** usado para arquivos de audio/audiobook e para TTS de TXT, EPUB e PDF com texto.
 
-O botao **Ouvir** para livros de texto ainda nao deve ser tratado como pronto, porque falta TTS. Para virar recurso real, o app precisa extrair texto, separar em blocos pequenos, tocar com TTS, salvar progresso separado da leitura visual e lidar com segundo plano.
+O botao **Ouvir** abaixo de **Ler** abre uma tela de TTS local. Ela extrai texto, separa em blocos pequenos, permite play/pause, voltar/avancar trecho, trocar idioma/velocidade e salva progresso separado da leitura visual.
 
-## O Que Falta Para Ouvir Livros Com TTS
+## Limites Do TTS Atual
 
-1. Criar uma camada separada de TTS, sem misturar com o player de audiobook real.
-2. Extrair texto por formato:
-   - EPUB: texto por capitulo.
-   - TXT: conteudo direto do arquivo.
-   - PDF com texto: extracao por pagina.
-   - PDF escaneado/HQ/Manga: OCR por pagina.
-3. Normalizar o texto:
-   - remover cabecalhos e rodapes repetidos;
-   - preservar ordem correta;
-   - separar frases e blocos curtos.
-4. Integrar TTS local, por exemplo `flutter_tts`, para um MVP offline.
-5. Salvar progresso de audio/TTS separado do progresso de leitura visual.
-6. Criar tela **Ouvir livro** com play/pause, voltar/avancar, velocidade, voz, marcador e continuar de onde parou.
-7. Testar segundo plano, tela bloqueada, fone Bluetooth, chamadas, pausas do sistema e notificacao de midia.
+- PDF escaneado ainda nao fala automaticamente; precisa OCR por pagina antes do TTS.
+- HQ/Manga ainda nao tem modo ouvir; precisa OCR por pagina e ordenacao de baloes.
+- DOC/DOCX ainda precisam de leitor/conversor antes do TTS.
+- O TTS usa vozes instaladas no aparelho via `flutter_tts`.
+- O TTS nao e o mesmo player de audiobook com notificacao de midia; testar tela bloqueada e background em aparelho real antes de prometer esse comportamento na Play Store.
 
 ## Audiobooks
 
@@ -212,15 +206,13 @@ Pontos que precisam ser resolvidos antes de publicar:
 - Melhorar area de audiobooks com duracao, capitulos M4B, bookmarks e fila.
 - Melhorar notificacao de midia e retomada de audio.
 - Extrair metadados de EPUB/PDF/audio: capa, autor, paginas, capitulos, duracao, codec e tamanho.
+- Melhorar TTS com marcadores, selecao de voz instalada e retomada mais precisa dentro do trecho.
 - Criar busca por titulo, autor, tipo, status e colecao.
 - Implementar backup/exportacao local da biblioteca.
 - Tratar pasta de imagens como HQ/Manga.
 
 ### Prioridade Baixa/Futura
 
-- Botao **Ouvir** abaixo de **Ler** para EPUB/TXT/PDF quando TTS estiver implementado.
-- MVP de TTS local primeiro para TXT e EPUB.
-- TTS para PDF com texto.
 - OCR + TTS para PDF escaneado, HQ e Manga.
 - Leitor/conversor para MOBI/AZW/AZW3 sem DRM.
 - Tratamento claro para KFX como formato nao suportado.
@@ -268,6 +260,8 @@ Crie `android/key.properties` localmente e nao comite esse arquivo. O `.gitignor
 | `file_picker` | Selecao de arquivos e pastas quando aplicavel. |
 | `pdfrx` | Renderizacao de PDF. |
 | `flutter_epub_viewer` | Leitor EPUB. |
+| `flutter_tts` | TTS local para TXT, EPUB e PDF com texto. |
+| `html` / `xml` | Extracao de texto e estrutura de capitulos em EPUB. |
 | `archive` / `rar` | Leitura/conversao de arquivos de HQ. |
 | `google_mlkit_text_recognition` | OCR em paginas de HQ/Manga. |
 | `http` | Chamadas externas, como traducao. |

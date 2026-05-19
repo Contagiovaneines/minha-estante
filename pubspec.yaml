@@ -55,6 +55,9 @@ dependencies:
   flutter_epub_viewer: ^1.2.8
   just_audio_background: ^0.0.1-beta.17
   audio_session: ^0.2.3
+  flutter_tts: ^4.2.5
+  html: ^0.15.6
+  xml: ^6.6.1
 
 dev_dependencies:
   flutter_test:

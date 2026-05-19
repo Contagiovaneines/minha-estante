@@ -12,6 +12,7 @@ import '../features/reader/presentation/document_reader_page.dart';
 import '../features/reader/presentation/epub_reader_page.dart';
 import '../features/reader/presentation/hq_reader_page.dart';
 import '../features/reader/presentation/cbr_conversion_page.dart';
+import '../features/reader/presentation/tts_reader_page.dart';
 import '../features/library/domain/library_item.dart';
 import '../features/audio/presentation/audiobook_player_page.dart';
 import '../features/audio/presentation/audiobooks_page.dart';
@@ -97,6 +98,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           return AudiobookPlayerPage(itemId: id);
+        },
+      ),
+      GoRoute(
+        path: '/listen/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return TtsReaderPage(itemId: id);
         },
       ),
       ShellRoute(
