@@ -149,16 +149,18 @@ class LibraryItemCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final coverColor = _coverColor(context);
+
     return ClipRRect(
       borderRadius: borderRadius,
       child: ColoredBox(
-        color: _coverColor.withValues(alpha: 0.12),
-        child: _buildCoverContent(),
+        color: coverColor.withValues(alpha: 0.12),
+        child: _buildCoverContent(context),
       ),
     );
   }
 
-  Widget _buildCoverContent() {
+  Widget _buildCoverContent(BuildContext context) {
     final thumbnailUrl = item.thumbnailUrl;
     if (thumbnailUrl != null && thumbnailUrl.isNotEmpty) {
       final uri = Uri.tryParse(thumbnailUrl);
@@ -166,7 +168,7 @@ class LibraryItemCover extends StatelessWidget {
         return Image.network(
           thumbnailUrl,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _buildGeneratedCover(),
+          errorBuilder: (_, _, _) => _buildGeneratedCover(context),
         );
       }
 
@@ -175,16 +177,17 @@ class LibraryItemCover extends StatelessWidget {
         fit: BoxFit.cover,
         gaplessPlayback: true,
         filterQuality: FilterQuality.medium,
-        errorBuilder: (_, _, _) => _buildGeneratedCover(),
+        errorBuilder: (_, _, _) => _buildGeneratedCover(context),
       );
     }
 
     if (item.type == ItemType.pdf && item.localPath != null) {
       return _buildPdfPreview(
+        context,
         PdfDocumentViewBuilder.file(
           item.localPath!,
-          loadingBuilder: (_) => _buildGeneratedCover(),
-          errorBuilder: (_, _, _) => _buildGeneratedCover(),
+          loadingBuilder: (_) => _buildGeneratedCover(context),
+          errorBuilder: (_, _, _) => _buildGeneratedCover(context),
           builder: _buildPdfPage,
         ),
       );
@@ -192,20 +195,24 @@ class LibraryItemCover extends StatelessWidget {
 
     if (item.type == ItemType.pdf && item.remoteUrl != null) {
       return _buildPdfPreview(
+        context,
         PdfDocumentViewBuilder.uri(
           Uri.parse(item.remoteUrl!),
-          loadingBuilder: (_) => _buildGeneratedCover(),
-          errorBuilder: (_, _, _) => _buildGeneratedCover(),
+          loadingBuilder: (_) => _buildGeneratedCover(context),
+          errorBuilder: (_, _, _) => _buildGeneratedCover(context),
           builder: _buildPdfPage,
         ),
       );
     }
 
     if (_hasLocalCbzCover) {
-      return _CbzCoverPreview(item: item, fallback: _buildGeneratedCover());
+      return _CbzCoverPreview(
+        item: item,
+        fallback: _buildGeneratedCover(context),
+      );
     }
 
-    return _buildGeneratedCover();
+    return _buildGeneratedCover(context);
   }
 
   bool get _hasLocalCbzCover {
@@ -220,7 +227,9 @@ class LibraryItemCover extends StatelessWidget {
     return lowerPath.endsWith('.cbz') || lowerPath.endsWith('.zip');
   }
 
-  Widget _buildPdfPreview(Widget child) {
+  Widget _buildPdfPreview(BuildContext context, Widget child) {
+    final colors = Theme.of(context).colorScheme;
+
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -228,7 +237,7 @@ class LibraryItemCover extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [
             Colors.white,
-            AppColors.surfaceContainer.withValues(alpha: 0.55),
+            colors.surfaceContainerHighest.withValues(alpha: 0.55),
           ],
         ),
       ),
@@ -238,7 +247,7 @@ class LibraryItemCover extends StatelessWidget {
 
   Widget _buildPdfPage(BuildContext context, PdfDocument? document) {
     if (document == null || document.pages.isEmpty) {
-      return _buildGeneratedCover();
+      return _buildGeneratedCover(context);
     }
 
     return PdfPageView(
@@ -247,7 +256,9 @@ class LibraryItemCover extends StatelessWidget {
       maximumDpi: 110,
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.4)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -260,30 +271,34 @@ class LibraryItemCover extends StatelessWidget {
     );
   }
 
-  Widget _buildGeneratedCover() {
+  Widget _buildGeneratedCover(BuildContext context) {
+    final coverColor = _coverColor(context);
+
     return Center(
       child: Icon(
         _coverIcon,
         size: iconSize,
-        color: _coverColor.withValues(alpha: 0.72),
+        color: coverColor.withValues(alpha: 0.72),
       ),
     );
   }
 
-  Color get _coverColor {
+  Color _coverColor(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     switch (item.type) {
       case ItemType.pdf:
-        return AppColors.primary;
+        return colors.primary;
       case ItemType.hq:
         return AppColors.comicAccent;
       case ItemType.audio:
         return AppColors.audioAccent;
       case ItemType.ebook:
-        return AppColors.primaryContainer;
+        return colors.primaryContainer;
       case ItemType.document:
         return AppColors.localAccent;
       case ItemType.text:
-        return AppColors.textSecondary;
+        return colors.onSurfaceVariant;
     }
   }
 

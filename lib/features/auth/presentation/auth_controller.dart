@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/auth_repository.dart';
-import '../data/mock_auth_repository.dart';
+import '../data/local_auth_repository.dart';
 import '../domain/app_user.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => MockAuthRepository(),
+  (ref) => LocalAuthRepository(),
 );
 
 final authControllerProvider = AsyncNotifierProvider<AuthController, AppUser?>(

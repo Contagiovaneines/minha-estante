@@ -81,7 +81,11 @@ class QueuePage extends ConsumerWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.queue_music_rounded, size: 64, color: AppColors.border),
+        Icon(
+          Icons.queue_music_rounded,
+          size: 64,
+          color: Theme.of(context).colorScheme.outline,
+        ),
         const SizedBox(height: 16),
         Text(
           'Fila vazia',
@@ -123,17 +127,19 @@ class _QueueTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: isCurrent
             ? AppColors.audioAccent.withValues(alpha: 0.1)
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
+            : colors.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isCurrent
               ? AppColors.audioAccent
-              : Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
+              : colors.outline.withValues(alpha: 0.4),
           width: isCurrent ? 1.5 : 1,
         ),
       ),
@@ -159,9 +165,7 @@ class _QueueTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
-            color: isCurrent
-                ? AppColors.audioAccent
-                : Theme.of(context).colorScheme.onSurface,
+            color: isCurrent ? AppColors.audioAccent : colors.onSurface,
             fontSize: 14,
           ),
         ),
@@ -184,7 +188,7 @@ class _QueueTile extends StatelessWidget {
               tooltip: 'Remover da fila',
               onPressed: onRemove,
             ),
-            const Icon(Icons.drag_handle_rounded, color: AppColors.border),
+            Icon(Icons.drag_handle_rounded, color: colors.outline),
           ],
         ),
       ),

@@ -12,17 +12,19 @@ class AppChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = _color(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _backgroundColor.withValues(alpha: 0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _backgroundColor.withValues(alpha: 0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
         customLabel ?? _label,
         style: TextStyle(
-          color: _backgroundColor,
+          color: color,
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.3,
@@ -54,24 +56,26 @@ class AppChip extends StatelessWidget {
     }
   }
 
-  Color get _backgroundColor {
+  Color _color(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     switch (type) {
       case ChipType.pdf:
-        return AppColors.primary;
+        return colors.primary;
       case ChipType.hq:
         return AppColors.comicAccent;
       case ChipType.audio:
         return AppColors.audioAccent;
       case ChipType.ebook:
-        return AppColors.primaryContainer;
+        return colors.primaryContainer;
       case ChipType.document:
         return AppColors.localAccent;
       case ChipType.text:
-        return AppColors.textSecondary;
+        return colors.onSurfaceVariant;
       case ChipType.newItem:
-        return AppColors.primaryContainer;
+        return colors.primaryContainer;
       case ChipType.online:
-        return AppColors.primaryContainer;
+        return colors.primaryContainer;
       case ChipType.local:
         return AppColors.localAccent;
     }

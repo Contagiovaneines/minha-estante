@@ -16,11 +16,16 @@ class StatisticsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(libraryControllerProvider).value ?? [];
     final user = ref.watch(authControllerProvider).value;
+    final itemIds = items.map((item) => item.id).toSet();
     final sessions = user != null
-        ? LocalStorageService.getReadingSessions(user.id)
+        ? LocalStorageService.getReadingSessions(
+            user.id,
+          ).where((session) => itemIds.contains(session['itemId'])).toList()
         : <Map<String, dynamic>>[];
     final bookmarks = user != null
-        ? LocalStorageService.getAllBookmarks(user.id)
+        ? LocalStorageService.getAllBookmarks(
+            user.id,
+          ).where((bookmark) => itemIds.contains(bookmark['itemId'])).toList()
         : <Map<String, dynamic>>[];
 
     return Scaffold(

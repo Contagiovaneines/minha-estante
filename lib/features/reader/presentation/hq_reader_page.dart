@@ -77,11 +77,15 @@ class _HqReaderView extends ConsumerStatefulWidget {
 }
 
 class _HqReaderViewState extends ConsumerState<_HqReaderView> {
+  static const _doubleTapZoomScale = 2.6;
+
   late final PageController _pageController;
+  late final TransformationController _pageTransformController;
   List<File>? _pages;
   String? _error;
   bool _showBars = true;
   int _currentPage = 0;
+  TapDownDetails? _doubleTapDetails;
   final _cbzService = CbzReaderService();
 
   bool _showTranslation = false;
@@ -91,6 +95,7 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _pageTransformController = TransformationController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
@@ -104,6 +109,7 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
   @override
   void dispose() {
     _pageController.dispose();
+    _pageTransformController.dispose();
     _cbzService.cleanup(widget.item.id);
     super.dispose();
   }
@@ -151,7 +157,39 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
 
   void _toggleBars() => setState(() => _showBars = !_showBars);
 
+  void _resetZoom() {
+    _pageTransformController.value = Matrix4.identity();
+  }
+
+  void _handleDoubleTapDown(TapDownDetails details) {
+    _doubleTapDetails = details;
+  }
+
+  void _handleDoubleTap() {
+    final details = _doubleTapDetails;
+    if (details == null) return;
+
+    final currentScale = _pageTransformController.value.getMaxScaleOnAxis();
+    if (currentScale > 1.05) {
+      _resetZoom();
+      return;
+    }
+
+    final tap = details.localPosition;
+    final zoom = _doubleTapZoomScale;
+    final zoomed = Matrix4.identity()
+      ..setEntry(0, 0, zoom)
+      ..setEntry(1, 1, zoom)
+      ..setTranslationRaw(-tap.dx * (zoom - 1), -tap.dy * (zoom - 1), 0);
+
+    _pageTransformController.value = zoomed;
+    if (_showBars) {
+      setState(() => _showBars = false);
+    }
+  }
+
   void _goTo(int page) {
+    _resetZoom();
     _pageController.animateToPage(
       page,
       duration: const Duration(milliseconds: 300),
@@ -304,18 +342,18 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
     return Stack(
       children: [
         Positioned.fill(
-          child: GestureDetector(
-            onTap: _showTranslation ? null : _toggleBars,
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: _pages!.length,
-              onPageChanged: (i) => setState(() {
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: _pages!.length,
+            onPageChanged: (i) {
+              _resetZoom();
+              setState(() {
                 _currentPage = i;
                 _showTranslation = false;
-              }),
-              itemBuilder: (context, index) =>
-                  _buildPageImage(_pages![index], index),
-            ),
+              });
+            },
+            itemBuilder: (context, index) =>
+                _buildPageImage(_pages![index], index),
           ),
         ),
         if (_showTranslation && _pages != null)
@@ -325,6 +363,9 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
               sourceLang: _translationLang,
               onClose: () => setState(() => _showTranslation = false),
               onLangChanged: (lang) => setState(() => _translationLang = lang),
+              transformationController: _pageTransformController,
+              onDoubleTapDown: _handleDoubleTapDown,
+              onDoubleTap: _handleDoubleTap,
             ),
           ),
         if (_showBars && !_showTranslation)
@@ -341,30 +382,44 @@ class _HqReaderViewState extends ConsumerState<_HqReaderView> {
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
         final cacheWidth = (maxWidth * dpr * 2).round().clamp(1, 4096);
+        final isCurrentPage = index == _currentPage;
 
-        return InteractiveViewer(
-          minScale: 0.8,
-          maxScale: 5.0,
-          child: Center(
-            child: Image.file(
-              file,
-              key: ValueKey(file.path),
-              width: constraints.maxWidth,
-              height: constraints.maxHeight,
-              fit: BoxFit.contain,
-              cacheWidth: cacheWidth,
-              filterQuality: FilterQuality.medium,
-              gaplessPlayback: true,
-              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                if (wasSynchronouslyLoaded || frame != null) return child;
-                return const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.comicAccent,
-                  ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) =>
-                  _buildPageError(index),
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _showTranslation ? null : _toggleBars,
+          onDoubleTapDown: isCurrentPage && !_showTranslation
+              ? _handleDoubleTapDown
+              : null,
+          onDoubleTap: isCurrentPage && !_showTranslation
+              ? _handleDoubleTap
+              : null,
+          child: InteractiveViewer(
+            transformationController: isCurrentPage
+                ? _pageTransformController
+                : null,
+            minScale: 0.8,
+            maxScale: 5.0,
+            child: Center(
+              child: Image.file(
+                file,
+                key: ValueKey(file.path),
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
+                fit: BoxFit.contain,
+                cacheWidth: cacheWidth,
+                filterQuality: FilterQuality.medium,
+                gaplessPlayback: true,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded || frame != null) return child;
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.comicAccent,
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) =>
+                    _buildPageError(index),
+              ),
             ),
           ),
         );

@@ -99,9 +99,10 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
   @override
   Widget build(BuildContext context) {
     final libraryState = ref.watch(libraryControllerProvider);
+    final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _isImporting ? null : _pickAudiobooks,
         icon: _isImporting
@@ -121,7 +122,9 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
           loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.audioAccent),
           ),
-          error: (error, _) => Center(child: Text('Erro: $error')),
+          error: (error, _) => Center(
+            child: Text('Erro: $error', style: TextStyle(color: colors.error)),
+          ),
           data: (items) {
             final audiobooks = _filteredAudiobooks(items);
             final continueItems = audiobooks
@@ -198,6 +201,8 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
   }
 
   Widget _buildHeader(int count) {
+    final colors = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 8),
       child: Row(
@@ -211,14 +216,14 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
                   style: GoogleFonts.playfairDisplay(
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: colors.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   count == 1 ? '1 audio salvo' : '$count audios salvos',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
                     fontSize: 14,
                   ),
                 ),
@@ -269,16 +274,17 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
 
   Widget _buildContinueSection(List<LibraryItem> items) {
     final visible = items.take(2).toList();
+    final colors = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Continuar ouvindo',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: colors.onSurface,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
@@ -298,6 +304,8 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
   }
 
   Widget _buildEmptyState() {
+    final colors = Theme.of(context).colorScheme;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -318,20 +326,20 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
+            Text(
               'Nenhum audiobook ainda',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: colors.onSurface,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Toque em Adicionar para escolher MP3, M4A, M4B, AAC, WAV ou OPUS do celular.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.textSecondary,
+                color: colors.onSurfaceVariant,
                 fontSize: 14,
                 height: 1.45,
               ),

@@ -14,16 +14,18 @@ class BookGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: colors.outline),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: colors.shadow.withValues(alpha: 0.08),
               blurRadius: 12,
               offset: const Offset(0, 3),
             ),
@@ -42,10 +44,10 @@ class BookGridCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     item.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: colors.onSurface,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -54,9 +56,9 @@ class BookGridCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       item.author!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textSecondary,
+                        color: colors.onSurfaceVariant,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -66,7 +68,7 @@ class BookGridCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     AppProgressBar(
                       value: item.progress,
-                      color: _progressColor,
+                      color: _progressColor(context),
                       height: 4,
                     ),
                     const SizedBox(height: 3),
@@ -74,7 +76,7 @@ class BookGridCard extends StatelessWidget {
                       '${(item.progress * 100).toStringAsFixed(0)}%',
                       style: TextStyle(
                         fontSize: 10,
-                        color: _progressColor,
+                        color: _progressColor(context),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -115,20 +117,22 @@ class BookGridCard extends StatelessWidget {
     );
   }
 
-  Color get _progressColor {
+  Color _progressColor(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     switch (item.type) {
       case ItemType.pdf:
-        return AppColors.primary;
+        return colors.primary;
       case ItemType.hq:
         return AppColors.comicAccent;
       case ItemType.audio:
         return AppColors.audioAccent;
       case ItemType.ebook:
-        return AppColors.primaryContainer;
+        return colors.primaryContainer;
       case ItemType.document:
         return AppColors.localAccent;
       case ItemType.text:
-        return AppColors.textSecondary;
+        return colors.onSurfaceVariant;
     }
   }
 

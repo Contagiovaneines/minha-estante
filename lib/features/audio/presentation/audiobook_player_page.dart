@@ -312,7 +312,7 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
     final item = _item;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: item == null
             ? const Center(
@@ -324,6 +324,8 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
   }
 
   Widget _buildPlayer(LibraryItem item) {
+    final colors = Theme.of(context).colorScheme;
+
     return Column(
       children: [
         _buildTopBar(context),
@@ -340,7 +342,7 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
                   style: GoogleFonts.playfairDisplay(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: colors.onSurface,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -348,9 +350,9 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
                   const SizedBox(height: 6),
                   Text(
                     item.author!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
-                      color: AppColors.textSecondary,
+                      color: colors.onSurfaceVariant,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -367,6 +369,8 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
 
   Widget _buildTopBar(BuildContext context) {
     final queue = ref.watch(audioQueueProvider);
+    final colors = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Row(
@@ -377,9 +381,9 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
               if (!context.mounted) return;
               context.pop();
             },
-            icon: const Icon(
+            icon: Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: AppColors.textPrimary,
+              color: colors.onSurface,
               size: 28,
             ),
             tooltip: 'Minimizar',
@@ -388,10 +392,7 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
           if (_chapters.isNotEmpty)
             IconButton(
               onPressed: _showChapters,
-              icon: const Icon(
-                Icons.list_rounded,
-                color: AppColors.textSecondary,
-              ),
+              icon: Icon(Icons.list_rounded, color: colors.onSurfaceVariant),
               tooltip: 'Capítulos',
             ),
           if (queue.isNotEmpty)
@@ -399,9 +400,9 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
               onPressed: () => context.push('/queue'),
               icon: Stack(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.queue_music_rounded,
-                    color: AppColors.textSecondary,
+                    color: colors.onSurfaceVariant,
                   ),
                   Positioned(
                     right: 0,
@@ -444,10 +445,7 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
           const Spacer(),
           IconButton(
             onPressed: () => context.go('/audiobooks'),
-            icon: const Icon(
-              Icons.library_music_rounded,
-              color: AppColors.textPrimary,
-            ),
+            icon: Icon(Icons.library_music_rounded, color: colors.onSurface),
             tooltip: 'Audiobooks',
           ),
         ],
@@ -499,6 +497,8 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
   }
 
   Widget _buildErrorView() {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -516,10 +516,7 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
           Expanded(
             child: Text(
               _errorMessage,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
             ),
           ),
         ],
@@ -528,6 +525,7 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
   }
 
   Widget _buildControls() {
+    final colors = Theme.of(context).colorScheme;
     final progressValue = _duration.inSeconds > 0
         ? (_position.inSeconds / _duration.inSeconds).clamp(0.0, 1.0)
         : 0.0;
@@ -537,7 +535,7 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
         SliderTheme(
           data: SliderThemeData(
             activeTrackColor: AppColors.audioAccent,
-            inactiveTrackColor: AppColors.border,
+            inactiveTrackColor: colors.outlineVariant,
             thumbColor: AppColors.audioAccent,
             overlayColor: AppColors.audioAccent.withValues(alpha: 0.15),
             trackHeight: 4,
@@ -559,17 +557,11 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
           children: [
             Text(
               Formatters.formatDuration(_position.inSeconds),
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
             ),
             Text(
               Formatters.formatDuration(_duration.inSeconds),
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
             ),
           ],
         ),
@@ -592,9 +584,9 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
             const SizedBox(width: 8),
             IconButton(
               onPressed: () => _seekBy(-15),
-              icon: const Icon(
+              icon: Icon(
                 Icons.replay_rounded,
-                color: AppColors.textPrimary,
+                color: colors.onSurface,
                 size: 36,
               ),
               tooltip: 'Voltar 15s',
@@ -626,9 +618,9 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
             const SizedBox(width: 16),
             IconButton(
               onPressed: () => _seekBy(15),
-              icon: const Icon(
+              icon: Icon(
                 Icons.forward_rounded,
-                color: AppColors.textPrimary,
+                color: colors.onSurface,
                 size: 36,
               ),
               tooltip: 'Avancar 15s',
@@ -636,10 +628,10 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
           ],
         ),
         const SizedBox(height: 16),
-        const Text(
+        Text(
           'Pode bloquear a tela ou trocar de aba enquanto o audio toca.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
         ),
         const SizedBox(height: 40),
       ],
@@ -664,6 +656,8 @@ class _ChaptersSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.6,
@@ -680,7 +674,7 @@ class _ChaptersSheet extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: AppColors.border,
+              color: colors.outlineVariant,
               borderRadius: BorderRadius.circular(999),
             ),
           ),

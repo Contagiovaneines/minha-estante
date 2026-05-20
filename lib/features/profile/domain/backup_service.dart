@@ -11,13 +11,22 @@ class BackupService {
 
   /// Gera o backup e retorna o caminho do arquivo criado.
   Future<String> exportBackup(String userId) async {
-    final items = LocalStorageService.getItems(userId);
-    final progress = LocalStorageService.getAllProgress(userId);
+    final items = LocalStorageService.getItems(
+      userId,
+    ).where((item) => _isRealItemId(item['id'] as String?)).toList();
+    final itemIds = items.map((item) => item['id'] as String).toSet();
+    final progress = LocalStorageService.getAllProgress(
+      userId,
+    ).where((entry) => itemIds.contains(entry['itemId'])).toList();
     final ttsProgress = _getTtsProgress(userId);
     final userData = LocalStorageService.getUserById(userId);
     final localFolders = LocalStorageService.getLocalFolders(userId);
-    final bookmarks = LocalStorageService.getAllBookmarks(userId);
-    final sessions = LocalStorageService.getReadingSessions(userId);
+    final bookmarks = LocalStorageService.getAllBookmarks(
+      userId,
+    ).where((bookmark) => itemIds.contains(bookmark['itemId'])).toList();
+    final sessions = LocalStorageService.getReadingSessions(
+      userId,
+    ).where((session) => itemIds.contains(session['itemId'])).toList();
 
     final backup = {
       'version': 2,
@@ -44,7 +53,9 @@ class BackupService {
 
   List<Map<String, dynamic>> _getTtsProgress(String userId) {
     final result = <Map<String, dynamic>>[];
-    final items = LocalStorageService.getItems(userId);
+    final items = LocalStorageService.getItems(
+      userId,
+    ).where((item) => _isRealItemId(item['id'] as String?)).toList();
     for (final item in items) {
       final id = item['id'] as String?;
       if (id == null) continue;
@@ -53,6 +64,9 @@ class BackupService {
     }
     return result;
   }
+
+  bool _isRealItemId(String? itemId) =>
+      itemId != null && !itemId.startsWith('mock_');
 
   // ─── Import ─────────────────────────────────────────────────────────────────
 
@@ -84,21 +98,37 @@ class BackupService {
     int itemsRestored = 0;
     int progressRestored = 0;
     int bookmarksRestored = 0;
+    final restoredItemIds = <String>{};
 
     // ─── Items
     final rawItems = data['items'] as List<dynamic>? ?? [];
     for (final raw in rawItems) {
-      final item = raw as Map<String, dynamic>;
+      final item = Map<String, dynamic>.from(raw as Map<String, dynamic>);
+      final itemId = item['id'] as String?;
+      if (!_isRealItemId(itemId)) continue;
+
       // Rewrite userId to match current local user
       item['userId'] = userId;
       await LocalStorageService.upsertItem(userId, item);
+      restoredItemIds.add(itemId!);
       itemsRestored++;
     }
+
+    final allowedItemIds = {
+      ...LocalStorageService.getItems(userId)
+          .map((item) => item['id'] as String?)
+          .whereType<String>()
+          .where(_isRealItemId),
+      ...restoredItemIds,
+    };
 
     // ─── Progress
     final rawProgress = data['progress'] as List<dynamic>? ?? [];
     for (final raw in rawProgress) {
       final prog = Map<String, dynamic>.from(raw as Map<String, dynamic>);
+      final itemId = prog['itemId'] as String?;
+      if (itemId == null || !allowedItemIds.contains(itemId)) continue;
+
       prog['userId'] = userId;
       await LocalStorageService.saveProgress(userId, prog);
       progressRestored++;
@@ -109,7 +139,7 @@ class BackupService {
     for (final raw in rawTts) {
       final tts = Map<String, dynamic>.from(raw as Map<String, dynamic>);
       final itemId = tts['itemId'] as String?;
-      if (itemId != null) {
+      if (itemId != null && allowedItemIds.contains(itemId)) {
         tts['userId'] = userId;
         await LocalStorageService.saveTtsProgress(userId, tts);
       }
@@ -120,6 +150,9 @@ class BackupService {
       final rawBookmarks = data['bookmarks'] as List<dynamic>? ?? [];
       for (final raw in rawBookmarks) {
         final bm = Map<String, dynamic>.from(raw as Map<String, dynamic>);
+        final itemId = bm['itemId'] as String?;
+        if (itemId == null || !allowedItemIds.contains(itemId)) continue;
+
         bm['userId'] = userId;
         await LocalStorageService.saveBookmark(userId, bm);
         bookmarksRestored++;

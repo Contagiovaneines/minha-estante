@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 
@@ -6,12 +7,14 @@ import '../../../core/storage/local_storage_service.dart';
 import '../domain/app_user.dart';
 import 'auth_repository.dart';
 
-class MockAuthRepository implements AuthRepository {
+class LocalAuthRepository implements AuthRepository {
   final _uuid = const Uuid();
-  static const _demoUserId = 'demo_giovane';
-  static const _demoUserName = 'Leitor';
-  static const _demoUserEmail = 'local@minha-estante.app';
-  static const _demoUserPassword = '12345678';
+
+  static const _localUserId = 'local_profile';
+  static const _localUserName = 'Leitor';
+  static const _localUserEmail = 'local@minha-estante.app';
+  static const _localUserPassword = '12345678';
+  static const _legacyLocalUserId = 'demo_giovane';
 
   String _hashPassword(String password) {
     final bytes = utf8.encode(password);
@@ -19,33 +22,42 @@ class MockAuthRepository implements AuthRepository {
     return digest.toString();
   }
 
-  Future<void> _ensureDemoUser() async {
-    final existing = LocalStorageService.getUserByEmail(_demoUserEmail);
-    if (existing != null) return;
+  Future<AppUser> _ensureLocalUser() async {
+    final savedId = LocalStorageService.getCurrentUserId();
+    if (savedId != null) {
+      final savedUser = LocalStorageService.getUserById(savedId);
+      if (savedUser != null) return AppUser.fromJson(savedUser);
+    }
+
+    final legacyUser = LocalStorageService.getUserById(_legacyLocalUserId);
+    if (legacyUser != null) {
+      final user = AppUser.fromJson(legacyUser);
+      await LocalStorageService.setCurrentUserId(user.id);
+      return user;
+    }
+
+    final existing = LocalStorageService.getUserByEmail(_localUserEmail);
+    if (existing != null) {
+      final user = AppUser.fromJson(existing);
+      await LocalStorageService.setCurrentUserId(user.id);
+      return user;
+    }
 
     final user = AppUser(
-      id: _demoUserId,
-      name: _demoUserName,
-      email: _demoUserEmail,
-      passwordHash: _hashPassword(_demoUserPassword),
+      id: _localUserId,
+      name: _localUserName,
+      email: _localUserEmail,
+      passwordHash: _hashPassword(_localUserPassword),
       createdAt: DateTime.now(),
     );
 
     await LocalStorageService.saveUser(user.toJson());
-  }
-
-  @override
-  Future<AppUser> enterAsGuest() async {
-    await _ensureDemoUser();
-    final userData = LocalStorageService.getUserById(_demoUserId);
-    if (userData == null) {
-      throw Exception('Nao foi possivel abrir o perfil local.');
-    }
-    final user = AppUser.fromJson(userData);
-    // Persiste sessão para restaurar ao reabrir o app
     await LocalStorageService.setCurrentUserId(user.id);
     return user;
   }
+
+  @override
+  Future<AppUser> enterAsGuest() => _ensureLocalUser();
 
   @override
   Future<AppUser> login({
@@ -53,11 +65,11 @@ class MockAuthRepository implements AuthRepository {
     required String password,
   }) async {
     await Future.delayed(const Duration(milliseconds: 600));
-    await _ensureDemoUser();
+    await _ensureLocalUser();
 
     final userData = LocalStorageService.getUserByEmail(email.toLowerCase());
     if (userData == null) {
-      throw Exception('Usuário não encontrado com este e-mail.');
+      throw Exception('Usuario nao encontrado com este e-mail.');
     }
 
     final user = AppUser.fromJson(userData);
@@ -80,7 +92,7 @@ class MockAuthRepository implements AuthRepository {
 
     final existing = LocalStorageService.getUserByEmail(email.toLowerCase());
     if (existing != null) {
-      throw Exception('Já existe uma conta com este e-mail.');
+      throw Exception('Ja existe uma conta com este e-mail.');
     }
 
     final user = AppUser(
@@ -103,7 +115,6 @@ class MockAuthRepository implements AuthRepository {
 
   @override
   Future<AppUser?> getCurrentUser() async {
-    // Tenta restaurar o usuário da sessão salva
     final savedId = LocalStorageService.getCurrentUserId();
     if (savedId != null) {
       final userData = LocalStorageService.getUserById(savedId);
@@ -118,7 +129,7 @@ class MockAuthRepository implements AuthRepository {
     required String name,
   }) async {
     final userData = LocalStorageService.getUserById(userId);
-    if (userData == null) throw Exception('Usuário não encontrado.');
+    if (userData == null) throw Exception('Usuario nao encontrado.');
     final user = AppUser.fromJson(userData).copyWith(name: name.trim());
     await LocalStorageService.saveUser(user.toJson());
     return user;
@@ -131,7 +142,7 @@ class MockAuthRepository implements AuthRepository {
     required String newPassword,
   }) async {
     final userData = LocalStorageService.getUserById(userId);
-    if (userData == null) throw Exception('Usuário não encontrado.');
+    if (userData == null) throw Exception('Usuario nao encontrado.');
     final user = AppUser.fromJson(userData);
     if (user.passwordHash != _hashPassword(oldPassword)) {
       throw Exception('Senha atual incorreta.');

@@ -203,11 +203,17 @@ class LocalLibraryRepository implements LibraryRepository {
     if (stored.isEmpty) return [];
 
     final items = stored.map(LibraryItem.fromJson).toList();
+    final mockItems = items
+        .where((item) => item.id.startsWith('mock_'))
+        .toList();
     final realItems = items
         .where((item) => !item.id.startsWith('mock_'))
         .toList();
-    if (realItems.length != items.length) {
+    if (mockItems.isNotEmpty) {
       await saveItems(userId, realItems);
+      for (final item in mockItems) {
+        await LocalStorageService.clearItemState(userId, item.id);
+      }
     }
     return realItems;
   }

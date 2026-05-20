@@ -158,10 +158,18 @@ class AppTheme {
           horizontal: 20,
           vertical: 16,
         ),
+        labelStyle: GoogleFonts.inter(color: textSecondary, fontSize: 14),
+        floatingLabelStyle: GoogleFonts.inter(
+          color: primary,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
         hintStyle: GoogleFonts.inter(
           color: textSecondary.withValues(alpha: 0.6),
           fontSize: 15,
         ),
+        prefixIconColor: textSecondary,
+        suffixIconColor: textSecondary,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -200,11 +208,20 @@ class AppTheme {
       dividerTheme: DividerThemeData(color: border, thickness: 1),
       chipTheme: ChipThemeData(
         backgroundColor: surfaceContainer,
+        selectedColor: primary,
+        disabledColor: surfaceContainer.withValues(alpha: 0.5),
         labelStyle: GoogleFonts.inter(
+          color: textSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
+        secondaryLabelStyle: GoogleFonts.inter(
+          color: onPrimary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
         shape: const StadiumBorder(),
+        side: BorderSide(color: border),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       ),
       dialogTheme: DialogThemeData(

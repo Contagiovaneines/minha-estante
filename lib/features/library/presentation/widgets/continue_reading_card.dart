@@ -15,17 +15,19 @@ class ContinueReadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return GestureDetector(
       onTap: () => context.push(_routeForItem),
       child: Container(
         height: 160,
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: colors.outline),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.06),
+              color: colors.shadow.withValues(alpha: 0.08),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -48,10 +50,10 @@ class ContinueReadingCard extends StatelessWidget {
                         const SizedBox(height: 8),
                         Text(
                           item.title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+                            color: colors.onSurface,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -60,9 +62,9 @@ class ContinueReadingCard extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             item.author!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: AppColors.textSecondary,
+                              color: colors.onSurfaceVariant,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -75,7 +77,7 @@ class ContinueReadingCard extends StatelessWidget {
                       children: [
                         AppProgressBar(
                           value: item.progress,
-                          color: _coverColor,
+                          color: _progressColor(context),
                           height: 5,
                         ),
                         const SizedBox(height: 8),
@@ -136,20 +138,22 @@ class ContinueReadingCard extends StatelessWidget {
     );
   }
 
-  Color get _coverColor {
+  Color _progressColor(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     switch (item.type) {
       case ItemType.pdf:
-        return AppColors.primary;
+        return colors.primary;
       case ItemType.hq:
         return AppColors.comicAccent;
       case ItemType.audio:
         return AppColors.audioAccent;
       case ItemType.ebook:
-        return AppColors.primaryContainer;
+        return colors.primaryContainer;
       case ItemType.document:
         return AppColors.localAccent;
       case ItemType.text:
-        return AppColors.textSecondary;
+        return colors.onSurfaceVariant;
     }
   }
 

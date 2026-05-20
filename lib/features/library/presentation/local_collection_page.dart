@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../domain/library_item.dart';
 import 'library_controller.dart';
@@ -40,9 +39,11 @@ class _LocalCollectionPageState extends ConsumerState<LocalCollectionPage> {
     final libraryState = ref.watch(libraryControllerProvider);
 
     return libraryState.when(
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
       ),
       error: (error, _) => Scaffold(
@@ -68,7 +69,7 @@ class _LocalCollectionPageState extends ConsumerState<LocalCollectionPage> {
             : 'Estante';
 
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: AppBar(
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
@@ -128,6 +129,8 @@ class _LocalCollectionPageState extends ConsumerState<LocalCollectionPage> {
   }
 
   Widget _buildSearchAndFilters() {
+    final colors = Theme.of(context).colorScheme;
+
     return Column(
       children: [
         TextField(
@@ -159,16 +162,14 @@ class _LocalCollectionPageState extends ConsumerState<LocalCollectionPage> {
                 selected: selected,
                 onSelected: (_) => setState(() => _filter = filter),
                 labelStyle: TextStyle(
-                  color: selected
-                      ? AppColors.onPrimary
-                      : AppColors.textSecondary,
+                  color: selected ? colors.onPrimary : colors.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),
-                selectedColor: AppColors.primary,
-                backgroundColor: AppColors.surface,
+                selectedColor: colors.primary,
+                backgroundColor: colors.surface,
                 side: BorderSide(
-                  color: selected ? AppColors.primary : AppColors.border,
+                  color: selected ? colors.primary : colors.outline,
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),

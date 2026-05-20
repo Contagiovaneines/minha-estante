@@ -488,12 +488,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     'doc',
     'docx',
     'txt',
-    'mp3',
-    'm4a',
-    'm4b',
-    'aac',
-    'wav',
-    'opus',
+  ];
+
+  static const _libraryTypeFilterOptions = [
+    LibraryTypeFilter.all,
+    LibraryTypeFilter.pdf,
+    LibraryTypeFilter.hq,
+    LibraryTypeFilter.ebook,
+    LibraryTypeFilter.document,
   ];
 
   void _showDuplicateSnackBar(List<String> titles) {
@@ -520,6 +522,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
+        final colors = Theme.of(context).colorScheme;
+
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -530,7 +534,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 Text(
                   isOnline ? 'Adicionar online' : 'Adicionar no celular',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: colors.onSurface,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
@@ -553,7 +557,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   _AddOptionTile(
                     icon: Icons.note_add_outlined,
                     title: 'Adicionar um arquivo',
-                    subtitle: 'Escolher PDF, EPUB, TXT, HQ ou audio.',
+                    subtitle: 'Escolher PDF, EPUB, TXT ou HQ.',
                     onTap: () {
                       Navigator.pop(context);
                       _pickLocalFiles();
@@ -610,6 +614,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   }
 
   Widget _buildImportOverlay() {
+    final colors = Theme.of(context).colorScheme;
     final progress = _importProgress;
     final percent = progress == null ? null : '${(progress * 100).round()}%';
 
@@ -621,9 +626,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: colors.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: colors.outline),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.15),
@@ -634,12 +639,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           ),
           child: Row(
             children: [
-              const SizedBox(
+              SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  color: AppColors.primary,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -653,7 +658,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: colors.onSurface,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
@@ -664,8 +669,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         value: progress,
                         minHeight: 3,
                         borderRadius: BorderRadius.circular(999),
-                        backgroundColor: AppColors.surfaceContainer,
-                        color: AppColors.primary,
+                        backgroundColor: colors.surfaceContainerHighest,
+                        color: colors.primary,
                       ),
                     ],
                   ],
@@ -686,15 +691,17 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
     return Positioned.fill(
       child: ColoredBox(
-        color: AppColors.background.withValues(alpha: 0.82),
+        color: Theme.of(
+          context,
+        ).scaffoldBackgroundColor.withValues(alpha: 0.82),
         child: Center(
           child: Container(
             width: 290,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: colors.surface,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.outline),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.08),
@@ -709,9 +716,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.folder_copy_rounded,
-                      color: AppColors.primary,
+                      color: colors.primary,
                       size: 22,
                     ),
                     const SizedBox(width: 10),
@@ -721,7 +728,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: AppColors.textPrimary,
+                          color: colors.onSurface,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
@@ -732,7 +739,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       Text(
                         percent,
                         style: TextStyle(
-                          color: AppColors.primary,
+                          color: colors.primary,
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
                         ),
@@ -745,8 +752,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   value: progress,
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(999),
-                  backgroundColor: AppColors.surfaceContainer,
-                  color: AppColors.primary,
+                  backgroundColor: colors.surfaceContainerHighest,
+                  color: colors.primary,
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -756,8 +763,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                     icon: const Icon(Icons.close_fullscreen_rounded, size: 18),
                     label: const Text('Esperar em segundo plano'),
                     style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      backgroundColor: AppColors.surfaceContainer,
+                      foregroundColor: colors.onSurfaceVariant,
+                      backgroundColor: colors.surfaceContainerHighest,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -766,11 +773,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Center(
+                Center(
                   child: Text(
                     'Você será avisado quando terminar.',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: colors.onSurfaceVariant,
                       fontSize: 11,
                     ),
                   ),
@@ -789,8 +796,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     String userName,
     List<LibraryItem> items,
   ) {
+    final colors = Theme.of(context).colorScheme;
     final query = _searchController.text;
-    final visibleItems = items
+    final libraryItems = items.where(_isLibraryItem).toList();
+    final visibleItems = libraryItems
         .where((item) => _filter.matches(item))
         .where(
           (item) => itemMatchesSearch(
@@ -805,10 +814,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         .where((item) => item.origin == ItemOrigin.local)
         .toList();
     // Apply type filter on top
+    final typeFilter = _activeLibraryTypeFilter;
     final visibleItems2 = localItems
-        .where((item) => _typeFilter.matchesType(item))
+        .where((item) => typeFilter.matchesType(item))
         .toList();
-    final lastOpenedItem = _lastOpenedItem(userId, items);
+    final lastOpenedItem = _lastOpenedItem(userId, libraryItems);
 
     return CustomScrollView(
       slivers: [
@@ -821,12 +831,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Continuar lendo',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: colors.onSurface,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -854,16 +864,23 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     );
   }
 
+  bool _isLibraryItem(LibraryItem item) => item.type != ItemType.audio;
+
+  LibraryTypeFilter get _activeLibraryTypeFilter =>
+      _typeFilter == LibraryTypeFilter.audio
+      ? LibraryTypeFilter.all
+      : _typeFilter;
+
   bool get _hasAdvancedSearch =>
       _authorSearchController.text.trim().isNotEmpty ||
       _collectionSearchController.text.trim().isNotEmpty ||
-      _typeFilter != LibraryTypeFilter.all;
+      _activeLibraryTypeFilter != LibraryTypeFilter.all;
 
   int get _advancedFilterCount {
     var count = 0;
     if (_authorSearchController.text.trim().isNotEmpty) count++;
     if (_collectionSearchController.text.trim().isNotEmpty) count++;
-    if (_typeFilter != LibraryTypeFilter.all) count++;
+    if (_activeLibraryTypeFilter != LibraryTypeFilter.all) count++;
     return count;
   }
 
@@ -874,17 +891,19 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final collectionController = TextEditingController(
       text: _collectionSearchController.text,
     );
-    var selectedType = _typeFilter;
+    var selectedType = _activeLibraryTypeFilter;
 
     try {
       await showModalBottomSheet<void>(
         context: context,
-        backgroundColor: AppColors.surface,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         isScrollControlled: true,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         builder: (context) {
+          final colors = Theme.of(context).colorScheme;
+
           return StatefulBuilder(
             builder: (context, modalSetState) {
               return SafeArea(
@@ -901,10 +920,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                     children: [
                       Row(
                         children: [
-                          const Text(
+                          Text(
                             'Busca avancada',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: colors.onSurface,
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
                             ),
@@ -938,25 +957,25 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          for (final type in LibraryTypeFilter.values)
+                          for (final type in _libraryTypeFilterOptions)
                             ChoiceChip(
                               label: Text(type.label),
                               selected: selectedType == type,
                               onSelected: (_) =>
                                   modalSetState(() => selectedType = type),
-                              selectedColor: AppColors.audioAccent,
-                              backgroundColor: AppColors.surface,
+                              selectedColor: colors.primary,
+                              backgroundColor: colors.surface,
                               labelStyle: TextStyle(
                                 color: selectedType == type
-                                    ? Colors.white
-                                    : AppColors.textSecondary,
+                                    ? colors.onPrimary
+                                    : colors.onSurfaceVariant,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 12,
                               ),
                               side: BorderSide(
                                 color: selectedType == type
-                                    ? AppColors.audioAccent
-                                    : AppColors.border,
+                                    ? colors.primary
+                                    : colors.outline,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(999),
@@ -1015,6 +1034,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   }
 
   Widget _buildSearchAndFilters() {
+    final colors = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
       child: Column(
@@ -1041,8 +1062,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       child: Icon(
                         Icons.tune_rounded,
                         color: _hasAdvancedSearch
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
+                            ? colors.primary
+                            : colors.onSurfaceVariant,
                       ),
                     ),
                     tooltip: 'Busca avancada',
@@ -1071,9 +1092,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       ),
                       onDeleted: _collectionSearchController.clear,
                     ),
-                  if (_typeFilter != LibraryTypeFilter.all)
+                  if (_activeLibraryTypeFilter != LibraryTypeFilter.all)
                     InputChip(
-                      label: Text('Tipo: ${_typeFilter.label}'),
+                      label: Text('Tipo: ${_activeLibraryTypeFilter.label}'),
                       onDeleted: () =>
                           setState(() => _typeFilter = LibraryTypeFilter.all),
                     ),
@@ -1098,15 +1119,15 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   onSelected: (_) => setState(() => _filter = filter),
                   labelStyle: TextStyle(
                     color: selected
-                        ? AppColors.onPrimary
-                        : AppColors.textSecondary,
+                        ? colors.onPrimary
+                        : colors.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
                   ),
-                  selectedColor: AppColors.primary,
-                  backgroundColor: AppColors.surface,
+                  selectedColor: colors.primary,
+                  backgroundColor: colors.surface,
                   side: BorderSide(
-                    color: selected ? AppColors.primary : AppColors.border,
+                    color: selected ? colors.primary : colors.outline,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
@@ -1150,7 +1171,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
+                  color: colors.primary,
                 ),
               ),
               const Spacer(),
@@ -1166,18 +1187,18 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                     if (profileImagePath != null) {
                       return CircleAvatar(
                         radius: 18,
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: colors.primary,
                         backgroundImage: FileImage(File(profileImagePath)),
                       );
                     }
 
                     return CircleAvatar(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: colors.primary,
                       radius: 18,
                       child: Text(
                         userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
                         style: TextStyle(
-                          color: AppColors.onPrimary,
+                          color: colors.onPrimary,
                           fontWeight: FontWeight.w700,
                           fontSize: 15,
                         ),
@@ -1234,7 +1255,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
+                  color: colors.primary,
                 ),
               ),
             ),
@@ -1473,7 +1494,7 @@ class _AddOptionTile extends StatelessWidget {
                 color: colors.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: AppColors.primary),
+              child: Icon(icon, color: colors.primary),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1525,7 +1546,7 @@ class _DrawerTile extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
 
     return ListTile(
-      leading: Icon(icon, color: AppColors.primary, size: 22),
+      leading: Icon(icon, color: colors.primary, size: 22),
       title: Text(
         label,
         style: TextStyle(

@@ -173,6 +173,10 @@ class LocalStorageService {
     await _progress.delete('${userId}_$itemId');
     await _bookmarks.delete(_bookmarkKey(userId, itemId));
     await _settings.delete(_ttsProgressKey(userId, itemId));
+    await clearReadingSessionsForItems(userId, {itemId});
+    if (getLastOpenedItemId(userId) == itemId) {
+      await clearLastOpenedItemId(userId);
+    }
   }
 
   static String? getProfileImage(String userId) {
@@ -261,6 +265,29 @@ class LocalStorageService {
     return (jsonDecode(raw) as List<dynamic>).cast<Map<String, dynamic>>();
   }
 
+  static Future<void> clearReadingSessionsForItems(
+    String userId,
+    Set<String> itemIds,
+  ) async {
+    if (itemIds.isEmpty) return;
+
+    final key = 'sessions_$userId';
+    final raw = _sessions.get(key);
+    if (raw == null) return;
+
+    final sessions = (jsonDecode(raw) as List<dynamic>)
+        .cast<Map<String, dynamic>>();
+    final filtered = sessions
+        .where((session) => !itemIds.contains(session['itemId']))
+        .toList();
+
+    if (filtered.isEmpty) {
+      await _sessions.delete(key);
+    } else if (filtered.length != sessions.length) {
+      await _sessions.put(key, jsonEncode(filtered));
+    }
+  }
+
   // ─── Upsert (used by backup restore) ───────────────────────────────────────
 
   /// Sobrescreve ou adiciona um item pelo id dentro da lista do userId.
@@ -292,6 +319,14 @@ class LocalStorageService {
     for (final key in ttsProgressKeys) {
       await _settings.delete(key);
     }
+    final bookmarkKeys = _bookmarks.keys
+        .where((k) => k.toString().startsWith('${userId}_'))
+        .toList();
+    for (final key in bookmarkKeys) {
+      await _bookmarks.delete(key);
+    }
+    await _sessions.delete('sessions_$userId');
+    await _sources.delete('$_localFoldersPrefix$userId');
     await clearLastOpenedItemId(userId);
   }
 }

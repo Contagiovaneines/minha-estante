@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
-
 class AppTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -34,15 +32,17 @@ class AppTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
+            color: colors.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 6),
@@ -58,7 +58,7 @@ class AppTextField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hintText,
             prefixIcon: prefixIcon != null
-                ? Icon(prefixIcon, color: AppColors.textSecondary, size: 20)
+                ? Icon(prefixIcon, color: colors.onSurfaceVariant, size: 20)
                 : null,
             suffixIcon: suffixIcon,
           ),

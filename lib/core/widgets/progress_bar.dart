@@ -20,7 +20,7 @@ class AppProgressBar extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       child: LinearProgressIndicator(
         value: value.clamp(0.0, 1.0),
-        backgroundColor: AppColors.surfaceContainer,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         color: color,
         minHeight: height,
       ),

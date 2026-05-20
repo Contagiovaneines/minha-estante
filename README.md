@@ -2,178 +2,87 @@
 
 Biblioteca digital pessoal feita em Flutter para organizar, ler e ouvir arquivos locais no Android.
 
-O app foi pensado como uma estante offline-first: o usuario escolhe arquivos ou pastas do proprio aparelho, o app cataloga os itens, salva progresso localmente e abre cada formato no leitor ou player adequado. Nao depende de login real, servidor proprio ou Google Drive.
+O app foi pensado como uma estante offline-first: o usuário escolhe arquivos ou pastas do próprio aparelho, o app cataloga os itens, salva progresso localmente e abre cada formato no leitor ou player adequado. Não depende de login real, servidor próprio ou nuvem (totalmente privado).
 
 ## Estado do projeto
 
-- Plataforma principal: Android.
-- Stack: Flutter, Dart, Riverpod, GoRouter e Hive.
-- Armazenamento: local no aparelho.
-- Build Android: debug e release funcionando.
-- Uso fora da Play Store: possivel por APK instalado manualmente no aparelho.
-- Publicacao Play Store: ainda falta preparar conta, keystore real, pagina publica de privacidade, assets da loja e revisao de checklist. Veja [PLAY_STORE_GUIDE.md](PLAY_STORE_GUIDE.md).
+- **Plataforma principal:** Android.
+- **Stack:** Flutter (3.11+), Dart, Riverpod (Gestão de Estado), GoRouter (Navegação) e Hive (Banco de Dados Local NoSQL).
+- **Armazenamento:** Local no aparelho (Arquivos físicos nunca são movidos/excluídos sem consentimento).
+- **Build Android:** Debug e Release operacionais.
 
-## O que o app ja tem
+## O que o app já tem (Funcionalidades)
 
-### Biblioteca local
+### 📚 Gestão da Biblioteca Local
+- **Importação Flexível:** Importe arquivos individuais ou sincronize pastas inteiras locais via seletor Android SAF.
+- **Suporte Multiformato:** Catálogo centralizado para PDF, EPUB, TXT, Documentos, Mangás/HQs (CBZ, CBR, RAR) e Audiobooks (MP3, M4A, M4B, AAC, WAV, OPUS).
+- **Extração Inteligente:** Puxa metadados automaticamente como capa, autor, quantidade de páginas e duração (quando o formato nativo permite).
+- **Coleções e Organização:** Agrupamento automático por pastas de origem.
+- **Busca e Filtros Avançados:** Pesquise por título, autor ou estante. Filtre por status: Todos, Novos, Favoritos, Lendo, Lidos e Para ler.
+- **Segurança:** A remoção de um item da estante apenas limpa o catálogo, preservando o arquivo original intacto no celular (opção de apagar requer confirmação explícita).
 
-- Importacao de arquivos individuais.
-- Importacao de pastas locais pelo seletor Android SAF.
-- Suporte de catalogo para PDF, EPUB, TXT, documentos, HQs e audios.
-- Conversao interna de CBR/RAR para CBZ quando possivel.
-- Extracao automatica de metadados: capa, autor, quantidade de paginas e duracao quando o formato permite.
-- Colecoes por pasta.
-- Busca por titulo, autor e estante.
-- Busca avancada por autor, colecao e tipo.
-- Filtros por status: todos, novos, favoritos, lendo, lidos e para ler.
-- Favoritos e status manual de leitura.
-- Remocao de item da estante com confirmacao. O arquivo original do celular nao e apagado.
+### 📖 Leitores Especializados
+- **Leitor de PDF Avançado (`pdfrx`):** Paginação fluida, marcadores, modo noturno local (inversão de cores), e salvamento exato de progresso.
+- **Leitor de EPUB (`flutter_epub_viewer`):** Fonte ajustável, temas (claro/escuro/sépia), navegação por capítulos (CFI) e marcadores.
+- **Leitor de HQ e Mangá (`archive`):** Leitura de CBZ nativa e descompressão de arquivos RAR/CBR em tempo real para CBZ. Suporte a zoom avançado.
+- **Leitor de Documentos (TXT):** Leitura simples de arquivos de texto puro.
+- **[NOVIDADE] OCR e Tradução em Tempo Real:** Escaneamento de texto em imagens (Mangás/HQs) e PDFs escaneados usando *Google ML Kit*. Traduz os balões e textos detectados para o português através da API MyMemory, com proteção antispam inteligente e contagem regressiva visual.
 
-### Leitura
+### 🎧 Áudio e Text-to-Speech (Ouvir Livros)
+- **Audiobook Player (`just_audio`):** Toca formatos nativos de áudio com suporte a reprodução em segundo plano e controles via notificação do sistema.
+- **Controle Total:** Ajuste fino da velocidade de reprodução (Pitch/Speed).
+- **Texto-para-Voz (TTS):** Transforma qualquer PDF, EPUB ou arquivo TXT em audiobook usando o motor de voz nativo do Android (`flutter_tts`).
+- **Leitura Sincronizada:** No modo ouvir, o app mostra a página do PDF e acompanha visualmente enquanto lê por voz. Pause o áudio e continue lendo pelo texto exatamente do mesmo ponto.
 
-- Leitor PDF com paginacao, marcador, modo noturno local, busca por pagina e progresso salvo.
-- Leitor EPUB com fonte ajustavel, tema claro/escuro, progresso por CFI e marcadores.
-- Leitor de HQ/CBZ.
-- Conversao CBR para CBZ para abrir HQs rar.
-- OCR em HQ/Manga e traducao de texto reconhecido quando o recurso for usado.
-- Marcadores em PDF e EPUB.
-- Registro de sessoes de leitura para estatisticas.
+### 👤 Perfil, Estatísticas e Segurança
+- **Painel de Perfil Local:** Personalize com seu nome e avatar.
+- **Estatísticas Detalhadas (`fl_chart`):** Acompanhe seu ritmo de leitura com gráficos de itens lidos, status, progresso e tempo total de uso.
+- **Tema Dinâmico:** Tema claro/escuro persistente baseado no sistema ou escolha manual.
+- **Backup e Restauração:** Exporte toda a sua biblioteca (metadados, progresso, marcadores) em um arquivo JSON seguro e importe em outro aparelho sem perder nada.
+- **Política de Privacidade:** 100% offline, os dados nunca saem do seu celular.
 
-### Ouvir livros
+## Arquitetura e Rotas
 
-- Player de audio para MP3, M4A, M4B, AAC, WAV e OPUS.
-- Reproducao em segundo plano com notificacao de midia.
-- Controle de velocidade.
-- Fila de reproducao com reordenacao.
-- Capitulos M4B por atomos `chpl` e `chap` QuickTime.
-- TTS para PDF, EPUB e TXT quando existe texto selecionavel.
-- Escolha de idioma, voz instalada no aparelho e velocidade do TTS.
-- Para PDF, o modo ouvir mostra a pagina do PDF enquanto le por voz.
-- Sincronizacao PDF leitura/ouvir: parar de ler em uma pagina e continuar ouvindo dali; parar de ouvir e voltar a ler na mesma pagina.
-
-### Perfil, estatisticas e backup
-
-- Perfil local com nome e foto.
-- Tema claro/escuro persistente.
-- Estatisticas por tipo, status, progresso e tempo de uso.
-- Exportacao de backup JSON.
-- Importacao de backup JSON sem duplicar itens.
-- Politica de privacidade dentro do app.
-- Widget Android na tela inicial com ultimo item/progresso.
-
-## Arquitetura resumida
-
+A arquitetura do projeto segue uma divisão modular orientada a features:
 ```text
 lib/
-  app/
-    app.dart
-    router.dart
-    scaffold_with_nav.dart
-    theme.dart
-    theme_provider.dart
-  core/
-    constants/
-    services/
-    storage/
-    widgets/
+  app/ (Configurações globais, Router, Temas)
+  core/ (Serviços compartilhados, banco de dados Hive, constantes)
   features/
-    audio/
-    auth/
-    book_detail/
-    library/
-    profile/
-    reader/
-    splash/
-android/
-  app/src/main/kotlin/com/minhaestante/minha_estante/
-    MainActivity.kt
-    MinhaEstanteWidgetProvider.kt
+    ├─ audio/ (Player de audiobook, Fila de reprodução)
+    ├─ auth/ (Tela de Login fake/offline)
+    ├─ book_detail/ (Metadados do livro, edição de capas)
+    ├─ library/ (Estante principal, coleções locais)
+    ├─ profile/ (Estatísticas, Backup JSON, Configurações)
+    ├─ reader/ (Leitores: PDF, EPUB, HQ, TTS, Tradutor Overlay)
+    └─ splash/ (Tela de carregamento)
 ```
 
-## Pacotes principais
+## Como Rodar e Compilar
 
-| Pacote | Uso |
-|---|---|
-| `flutter_riverpod` | Estado da aplicacao |
-| `go_router` | Rotas |
-| `hive_flutter` | Banco local |
-| `pdfrx` | PDF |
-| `flutter_epub_viewer` | EPUB |
-| `just_audio` e `just_audio_background` | Audio e background |
-| `flutter_tts` | Texto para voz |
-| `file_picker` | Escolha de arquivos |
-| `archive` e `rar` | HQs, CBZ e conversao |
-| `fl_chart` | Graficos de estatisticas |
-
-## Como rodar
-
+Instale as dependências e rode o app:
 ```bash
 flutter pub get
 flutter run
 ```
 
-## Como testar
-
+Para gerar os pacotes de distribuição local e loja:
 ```bash
-flutter analyze
-flutter test
-flutter build apk --debug
+flutter build apk --release       # Gera APK instalável manual
+flutter build appbundle --release # Gera AAB para a Play Store
 ```
 
-## Gerar APK local
+## 🚀 Ideias Futuras e Próximos Passos (Roadmap)
 
-```bash
-flutter build apk --release
-```
+Aqui estão as funcionalidades mapeadas para desenvolvimento futuro:
 
-Arquivo gerado:
+- **Extração de Capítulos M4B:** Ler metadados embutidos (`chpl` e atomos QuickTime) para listar capítulos nativos de audiobooks, facilitando a navegação.
+- **Fila Completa de Audiobooks:** Gerenciamento robusto de "Up Next" para tocar séries em sequência automaticamente.
+- **Widget Nativo Android:** Um widget interativo na tela inicial do celular (usando Kotlin/Jetpack Compose) para mostrar a capa do livro atual e permitir continuar a leitura/áudio com 1 clique.
+- **Editor Manual de Metadados:** Permitir trocar a capa, autor e sinopse de um livro diretamente na tela de detalhes.
+- **Suporte a Nuvem (Opt-in):** Sincronizar o JSON de backup automaticamente com o Google Drive para manter o progresso em múltiplos aparelhos.
+- **Melhorias em HQs Extensas:** Paginação virtual otimizada para CBZs com mais de 1000 páginas não sobrecarregarem a memória RAM.
 
-```text
-build/app/outputs/flutter-apk/app-release.apk
-```
+## Licença
 
-Para publicar na Play Store, use App Bundle:
-
-```bash
-flutter build appbundle --release
-```
-
-Arquivo gerado:
-
-```text
-build/app/outputs/bundle/release/app-release.aab
-```
-
-Leia tambem:
-
-- [RELEASE_SETUP.md](RELEASE_SETUP.md): assinatura Android.
-- [PLAY_STORE_GUIDE.md](PLAY_STORE_GUIDE.md): checklist completo para publicar seu primeiro app.
-- [PRIVACY_POLICY.md](PRIVACY_POLICY.md): politica de privacidade base.
-
-## O que falta para publicar
-
-- Criar a conta Google Play Developer.
-- Confirmar que `com.minhaestante.minha_estante` sera o package name definitivo.
-- Criar uma upload keystore real e o arquivo local `android/key.properties`.
-- Gerar o AAB assinado com `flutter build appbundle --release`.
-- Criar uma URL publica para a politica de privacidade.
-- Criar icone final, feature graphic e screenshots reais do app.
-- Preencher Data safety, Content rating, Target audience, Ads e App access no Play Console.
-- Rodar teste interno/fechado antes da producao.
-
-## Ideias futuras
-
-- OCR por pagina para PDFs escaneados e HQs.
-- Editor manual de metadados do livro.
-- Melhor pagina de detalhes com historico de leitura.
-- Exportar/importar biblioteca em formato mais amigavel.
-- Criar landing page publica com politica de privacidade e suporte.
-- Testes de interface para fluxos principais.
-- Pipeline de build assinado em CI.
-- Revisao completa de acessibilidade.
-- Localizacao completa em portugues e ingles.
-- Melhorar performance em bibliotecas muito grandes.
-
-## Licenca
-
-Este projeto esta licenciado sob a licenca MIT. Veja [LICENSE](LICENSE).
+Este projeto é open-source offline-first licenciado sob a licença MIT. Veja [LICENSE](LICENSE).

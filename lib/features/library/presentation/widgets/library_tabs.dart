@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-
 class LibraryTabs extends StatelessWidget {
   final TabController controller;
 
@@ -9,11 +7,13 @@ class LibraryTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return TabBar(
       controller: controller,
-      labelColor: AppColors.primary,
-      unselectedLabelColor: AppColors.textSecondary,
-      indicatorColor: AppColors.primary,
+      labelColor: colors.primary,
+      unselectedLabelColor: colors.onSurfaceVariant,
+      indicatorColor: colors.primary,
       indicatorSize: TabBarIndicatorSize.label,
       labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
       tabs: const [
