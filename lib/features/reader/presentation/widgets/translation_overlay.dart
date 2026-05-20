@@ -15,10 +15,7 @@ class _BubbleColors {
   final Color backgroundColor;
   final Color textColor;
 
-  const _BubbleColors({
-    required this.backgroundColor,
-    required this.textColor,
-  });
+  const _BubbleColors({required this.backgroundColor, required this.textColor});
 }
 
 enum _OverlayState { loading, done, error, empty }
@@ -60,7 +57,7 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
   String? _errorMessage;
 
   // Cooldown timer for rate-limiting
-  static const _cooldownSeconds = 90;
+  int _currentCooldownDuration = 90;
   DateTime? _rateLimitHitAt;
   Timer? _cooldownTimer;
   int _cooldownRemaining = 0;
@@ -131,12 +128,18 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
         final codec = await ui.instantiateImageCodec(bytes);
         final frame = await codec.getNextFrame();
         final decodedImage = frame.image;
-        final byteData = await decodedImage.toByteData(format: ui.ImageByteFormat.rawRgba);
+        final byteData = await decodedImage.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
 
         if (byteData != null) {
           for (var i = 0; i < result.blocks.length; i++) {
             final block = result.blocks[i];
-            bubbleColors[i] = _detectBubbleColors(decodedImage, byteData, block.boundingBox);
+            bubbleColors[i] = _detectBubbleColors(
+              decodedImage,
+              byteData,
+              block.boundingBox,
+            );
           }
         }
         decodedImage.dispose();
@@ -158,12 +161,47 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
       String displayError;
       bool isRateLimited = false;
       final errorStr = error.toString();
-      if (errorStr.contains('Limite de requisições') ||
-          errorStr.contains('cotas diárias') ||
-          errorStr.contains('MYMEMORY WARNING') ||
-          errorStr.contains('429')) {
+      int parsedCooldown = 90;
+
+      if (errorStr.contains('MYMEMORY WARNING')) {
         isRateLimited = true;
         displayError = 'Limite de traduções atingido.';
+
+        int h = 0, m = 0, s = 0;
+        final hMatch = RegExp(
+          r'(\d+)\s+HOUR',
+          caseSensitive: false,
+        ).firstMatch(errorStr);
+        if (hMatch != null) h = int.parse(hMatch.group(1)!);
+
+        final mMatch = RegExp(
+          r'(\d+)\s+MINUTE',
+          caseSensitive: false,
+        ).firstMatch(errorStr);
+        if (mMatch != null) m = int.parse(mMatch.group(1)!);
+
+        final sMatch = RegExp(
+          r'(\d+)\s+SECOND',
+          caseSensitive: false,
+        ).firstMatch(errorStr);
+        if (sMatch != null) s = int.parse(sMatch.group(1)!);
+
+        final total = (h * 3600) + (m * 60) + s;
+        if (total > 0) {
+          parsedCooldown = total;
+        } else {
+          parsedCooldown = 24 * 3600; // 24h fallback
+        }
+      } else if (errorStr.contains('429_ERROR')) {
+        isRateLimited = true;
+        displayError = errorStr;
+        parsedCooldown = 90;
+      } else if (errorStr.contains('Limite de requisições') ||
+          errorStr.contains('cotas diárias') ||
+          errorStr.contains('429')) {
+        isRateLimited = true;
+        displayError = 'Limite de requisições atingido.';
+        parsedCooldown = 90;
       } else if (errorStr.contains('Falha de rede') ||
           errorStr.contains('SocketException') ||
           errorStr.contains('ClientException') ||
@@ -176,6 +214,7 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
       }
 
       if (isRateLimited) {
+        _currentCooldownDuration = parsedCooldown;
         _startCooldown();
       }
 
@@ -192,7 +231,7 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
     // If we already have a running cooldown, use the remaining time
     if (_rateLimitHitAt != null) {
       final elapsed = DateTime.now().difference(_rateLimitHitAt!).inSeconds;
-      final remaining = _cooldownSeconds - elapsed;
+      final remaining = _currentCooldownDuration - elapsed;
       if (remaining > 0) {
         _cooldownRemaining = remaining;
         _startCooldownTicker();
@@ -201,7 +240,7 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
     }
 
     _rateLimitHitAt = DateTime.now();
-    _cooldownRemaining = _cooldownSeconds;
+    _cooldownRemaining = _currentCooldownDuration;
     _startCooldownTicker();
   }
 
@@ -224,13 +263,17 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
   }
 
   String _formatCooldown(int seconds) {
-    final mins = seconds ~/ 60;
+    final hours = seconds ~/ 3600;
+    final mins = (seconds % 3600) ~/ 60;
     final secs = seconds % 60;
+    if (hours > 0) {
+      return '$hours:${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    }
     return '$mins:${secs.toString().padLeft(2, '0')}';
   }
 
   Widget _buildCooldownIndicator() {
-    final progress = 1.0 - (_cooldownRemaining / _cooldownSeconds);
+    final progress = 1.0 - (_cooldownRemaining / _currentCooldownDuration);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -266,7 +309,11 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
     );
   }
 
-  _BubbleColors _detectBubbleColors(ui.Image image, ByteData byteData, Rect box) {
+  _BubbleColors _detectBubbleColors(
+    ui.Image image,
+    ByteData byteData,
+    Rect box,
+  ) {
     final w = image.width;
     final h = image.height;
 
@@ -302,7 +349,8 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
     Color textColor = Colors.black;
     double maxContrast = 0.0;
     for (final color in innerPixels) {
-      final contrast = (color.computeLuminance() - bgColor.computeLuminance()).abs();
+      final contrast = (color.computeLuminance() - bgColor.computeLuminance())
+          .abs();
       if (contrast > maxContrast) {
         maxContrast = contrast;
         textColor = color;
@@ -310,7 +358,11 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
     }
 
     final bgLuminance = bgColor.computeLuminance();
-    if (maxContrast < 0.25 || (bgColor.red - textColor.red).abs() + (bgColor.green - textColor.green).abs() + (bgColor.blue - textColor.blue).abs() < 90) {
+    if (maxContrast < 0.25 ||
+        (bgColor.red - textColor.red).abs() +
+                (bgColor.green - textColor.green).abs() +
+                (bgColor.blue - textColor.blue).abs() <
+            90) {
       textColor = bgLuminance > 0.5 ? Colors.black : Colors.white;
     }
 
@@ -521,7 +573,9 @@ class _TranslationOverlayState extends State<TranslationOverlay> {
                       ? 'Aguarde ${_formatCooldown(_cooldownRemaining)}'
                       : 'Tentar novamente',
                   style: TextStyle(
-                    color: _cooldownRemaining > 0 ? Colors.white38 : Colors.white,
+                    color: _cooldownRemaining > 0
+                        ? Colors.white38
+                        : Colors.white,
                   ),
                 ),
               ),
@@ -747,10 +801,12 @@ class _TranslationBlocksLayer extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final colors = bubbleColors[i] ?? const _BubbleColors(
-          backgroundColor: Colors.white,
-          textColor: Colors.black,
-        );
+        final colors =
+            bubbleColors[i] ??
+            const _BubbleColors(
+              backgroundColor: Colors.white,
+              textColor: Colors.black,
+            );
 
         return Positioned(
           left: viewportBox.left,
@@ -878,7 +934,9 @@ class _TranslatedBubbleState extends State<_TranslatedBubble> {
               : widget.backgroundColor,
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
-            color: _showOriginal ? Colors.amber.shade700 : widget.backgroundColor,
+            color: _showOriginal
+                ? Colors.amber.shade700
+                : widget.backgroundColor,
             width: 0.5,
           ),
         ),

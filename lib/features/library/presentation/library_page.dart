@@ -14,6 +14,7 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/widgets/app_chip.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/storage/local_storage_service.dart';
+import '../../../core/widgets/fake_monetization_slot.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../reader/domain/cbr_to_cbz_converter_service.dart';
@@ -40,8 +41,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   final _searchController = TextEditingController();
   final _authorSearchController = TextEditingController();
   final _collectionSearchController = TextEditingController();
+  final _scrollController = ScrollController();
   StreamSubscription<LocalFolderImportProgress>? _importProgressSub;
   StreamSubscription<NativeOpenedArchive>? _openedArchiveSub;
+  bool _showScrollToTop = false;
   bool _isLocalImporting = false;
   bool _isMinimized = false;
   bool _isHandlingOpenedArchive = false;
@@ -54,6 +57,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_handleScroll);
     _searchController.addListener(() => setState(() {}));
     _authorSearchController.addListener(() => setState(() {}));
     _collectionSearchController.addListener(() => setState(() {}));
@@ -78,10 +82,31 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   void dispose() {
     _importProgressSub?.cancel();
     _openedArchiveSub?.cancel();
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     _authorSearchController.dispose();
     _collectionSearchController.dispose();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+
+    final shouldShow = _scrollController.offset > 360;
+    if (shouldShow == _showScrollToTop || !mounted) return;
+
+    setState(() => _showScrollToTop = shouldShow);
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
   }
 
   void _handleImportProgress(LocalFolderImportProgress progress) {
@@ -605,11 +630,45 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddOptions,
-        tooltip: 'Adicionar pasta ou arquivo',
-        child: const Icon(Icons.add_rounded),
-      ),
+      floatingActionButton: _buildFloatingActions(),
+    );
+  }
+
+  Widget _buildFloatingActions() {
+    final colors = Theme.of(context).colorScheme;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        AnimatedScale(
+          scale: _showScrollToTop ? 1 : 0.85,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          child: AnimatedOpacity(
+            opacity: _showScrollToTop ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: IgnorePointer(
+              ignoring: !_showScrollToTop,
+              child: FloatingActionButton.small(
+                heroTag: 'library_scroll_to_top',
+                onPressed: _scrollToTop,
+                tooltip: 'Voltar ao topo',
+                backgroundColor: colors.surface,
+                foregroundColor: colors.primary,
+                child: const Icon(Icons.keyboard_arrow_up_rounded),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        FloatingActionButton(
+          heroTag: 'library_add',
+          onPressed: _showAddOptions,
+          tooltip: 'Adicionar pasta ou arquivo',
+          child: const Icon(Icons.add_rounded),
+        ),
+      ],
     );
   }
 
@@ -821,9 +880,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final lastOpenedItem = _lastOpenedItem(userId, libraryItems);
 
     return CustomScrollView(
+      controller: _scrollController,
       slivers: [
         SliverToBoxAdapter(child: _buildHeader(context, userName)),
         SliverToBoxAdapter(child: _buildSearchAndFilters()),
+        const SliverToBoxAdapter(
+          child: FakeMonetizationSlot(placement: 'library_home'),
+        ),
         if (lastOpenedItem != null)
           SliverToBoxAdapter(
             child: Padding(
@@ -845,11 +908,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
               ),
             ),
           ),
-        SliverFillRemaining(
-          child: _filter == LibraryViewFilter.all
-              ? _buildCollections(context, visibleItems2)
-              : _buildGrid(context, visibleItems2, isOnline: false),
-        ),
+        if (_filter == LibraryViewFilter.all)
+          _buildCollectionsSliver(context, visibleItems2)
+        else
+          _buildGridSliver(context, visibleItems2, isOnline: false),
       ],
     );
   }
@@ -1300,68 +1362,79 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     );
   }
 
-  Widget _buildGrid(
+  Widget _buildGridSliver(
     BuildContext context,
     List<LibraryItem> items, {
     required bool isOnline,
   }) {
     if (items.isEmpty) {
-      return EmptyState(
-        icon: isOnline
-            ? Icons.cloud_queue_rounded
-            : Icons.phone_android_rounded,
-        title: AppStrings.emptyLibrary,
-        subtitle: isOnline
-            ? 'Adicione arquivos pelo botão +.'
-            : 'Toque no botão + para adicionar uma pasta ou um arquivo.',
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: EmptyState(
+          icon: isOnline
+              ? Icons.cloud_queue_rounded
+              : Icons.phone_android_rounded,
+          title: AppStrings.emptyLibrary,
+          subtitle: isOnline
+              ? 'Adicione arquivos pelo botão +.'
+              : 'Toque no botão + para adicionar uma pasta ou um arquivo.',
+        ),
       );
     }
 
-    return GridView.builder(
+    return SliverPadding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.62,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.62,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        delegate: SliverChildBuilderDelegate((context, index) {
+          return BookGridCard(
+            item: items[index],
+            onTap: () => context.push('/book/${items[index].id}'),
+          );
+        }, childCount: items.length),
       ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        return BookGridCard(
-          item: items[index],
-          onTap: () => context.push('/book/${items[index].id}'),
-        );
-      },
     );
   }
 
-  Widget _buildCollections(BuildContext context, List<LibraryItem> items) {
+  Widget _buildCollectionsSliver(
+    BuildContext context,
+    List<LibraryItem> items,
+  ) {
     if (items.isEmpty) {
-      return const EmptyState(
-        icon: Icons.phone_android_rounded,
-        title: AppStrings.emptyLibrary,
-        subtitle: 'Toque no botão + para adicionar uma pasta ou um arquivo.',
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: EmptyState(
+          icon: Icons.phone_android_rounded,
+          title: AppStrings.emptyLibrary,
+          subtitle: 'Toque no botão + para adicionar uma pasta ou um arquivo.',
+        ),
       );
     }
 
     final collections = LibraryCollection.fromItems(items);
 
-    return GridView.builder(
+    return SliverPadding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.78,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.78,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final collection = collections[index];
+          return _CollectionCard(
+            collection: collection,
+            onTap: () => context.push('/collection/${collection.id}'),
+          );
+        }, childCount: collections.length),
       ),
-      itemCount: collections.length,
-      itemBuilder: (context, index) {
-        final collection = collections[index];
-        return _CollectionCard(
-          collection: collection,
-          onTap: () => context.push('/collection/${collection.id}'),
-        );
-      },
     );
   }
 }

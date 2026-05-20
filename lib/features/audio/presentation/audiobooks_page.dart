@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/fake_monetization_slot.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../library/domain/library_item.dart';
 import '../../library/presentation/library_controller.dart';
@@ -155,6 +156,9 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
                     ),
                   ),
                 ],
+                const SliverToBoxAdapter(
+                  child: FakeMonetizationSlot(placement: 'audiobooks_list'),
+                ),
                 if (audiobooks.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,

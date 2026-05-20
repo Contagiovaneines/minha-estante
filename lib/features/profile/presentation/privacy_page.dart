@@ -2,21 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../core/constants/app_colors.dart';
-
 class PrivacyPage extends StatelessWidget {
   const PrivacyPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: colors.surface,
       appBar: AppBar(
+        backgroundColor: colors.surface,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: Icon(Icons.arrow_back_rounded, color: colors.onSurface),
           onPressed: () => context.go('/profile'),
         ),
-        title: const Text('Privacidade'),
+        title: Text('Privacidade', style: TextStyle(color: colors.onSurface)),
       ),
       body: SafeArea(
         child: ListView(
@@ -27,14 +28,14 @@ class PrivacyPage extends StatelessWidget {
               style: GoogleFonts.playfairDisplay(
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+                color: colors.onSurface,
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'O Minha Estante foi pensado como uma biblioteca local. Esta tela resume o comportamento atual do app e deve ser usada como base para a politica publica antes de subir na Play Store.',
               style: TextStyle(
-                color: AppColors.textSecondary,
+                color: colors.onSurfaceVariant,
                 fontSize: 15,
                 height: 1.45,
               ),
@@ -96,18 +97,20 @@ class _PrivacySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.primary, size: 24),
+          Icon(icon, color: colors.primary, size: 24),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -115,8 +118,8 @@ class _PrivacySection extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: colors.onSurface,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                   ),
@@ -124,8 +127,8 @@ class _PrivacySection extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   text,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
                     fontSize: 13,
                     height: 1.4,
                   ),

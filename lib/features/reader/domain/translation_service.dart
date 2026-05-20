@@ -139,7 +139,14 @@ class TranslationService {
       final response = await http.get(uri).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 429) {
-        throw Exception('Limite de requisições excedido no MyMemory. Tente novamente mais tarde.');
+        try {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          final details = data['responseDetails'] as String?;
+          if (details != null && details.contains('MYMEMORY WARNING')) {
+            throw Exception(details);
+          }
+        } catch (_) {}
+        throw Exception('429_ERROR: headers=${response.headers} body=${response.body}');
       }
       if (response.statusCode != 200) {
         throw Exception('Erro ao conectar ao servidor de tradução (HTTP ${response.statusCode}).');
@@ -150,7 +157,7 @@ class TranslationService {
       final translated = responseData?['translatedText'] as String?;
 
       if (translated != null && translated.contains('MYMEMORY WARNING')) {
-        throw Exception('Limite de cotas diárias atingido no MyMemory. Tente novamente mais tarde.');
+        throw Exception(translated);
       }
 
       if (translated == null) {

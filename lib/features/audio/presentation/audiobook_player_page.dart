@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/fake_monetization_slot.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../library/domain/library_item.dart';
 import '../../library/domain/reading_progress.dart';
@@ -633,6 +634,8 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
           textAlign: TextAlign.center,
           style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
         ),
+        const SizedBox(height: 16),
+        const FakeMonetizationSlot(placement: 'audio_player_bottom'),
         const SizedBox(height: 40),
       ],
     );

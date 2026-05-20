@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -10,7 +11,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/providers/ads_provider.dart';
 import '../../../core/storage/local_storage_service.dart';
+import '../../../core/widgets/fake_monetization_slot.dart';
 import '../../auth/domain/app_user.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../library/domain/library_item.dart';
@@ -57,6 +60,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               if (user != null) _buildMenuSection(context, ref, user),
               const SizedBox(height: 20),
               _buildExitCard(context, ref),
+              const SizedBox(height: 20),
+              const FakeMonetizationSlot(placement: 'profile_bottom'),
               const SizedBox(height: 40),
             ],
           ),
@@ -185,6 +190,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Widget _buildMenuSection(BuildContext context, WidgetRef ref, AppUser user) {
     final isDark = ref.watch(themeModeProvider);
+    final showAds = ref.watch(adsProvider);
     final colors = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
@@ -216,6 +222,25 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             icon: Icons.privacy_tip_outlined,
             label: 'Privacidade',
             onTap: () => context.go('/privacy'),
+          ),
+          Divider(height: 1, indent: 56, color: colors.outlineVariant),
+          _MenuItem(
+            icon: showAds ? Icons.money_off_rounded : Icons.campaign_rounded,
+            label: showAds ? 'Desativar propagandas' : 'Ativar propagandas',
+            onTap: () {
+              if (showAds) {
+                _showDisableAdsModal(context, ref);
+              } else {
+                ref.read(adsProvider.notifier).toggleAds(true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Propagandas ativadas. Obrigado pelo apoio!'),
+                    backgroundColor: AppColors.primary,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
           ),
           Divider(height: 1, indent: 56, color: colors.outlineVariant),
           _MenuItem(
@@ -428,6 +453,26 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
+  void _showDisableAdsModal(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).colorScheme;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _DisableAdsModalContent(
+        ref: ref,
+        onDonationTap: () {
+          Navigator.pop(ctx);
+          _showDonation(context);
+        },
+      ),
+    );
+  }
+
   void _editProfile(BuildContext context, WidgetRef ref, AppUser user) {
     final ctrl = TextEditingController(text: user.name);
 
@@ -580,3 +625,156 @@ class _MenuItem extends StatelessWidget {
     );
   }
 }
+
+class _DisableAdsModalContent extends StatefulWidget {
+  final WidgetRef ref;
+  final VoidCallback onDonationTap;
+
+  const _DisableAdsModalContent({
+    required this.ref,
+    required this.onDonationTap,
+  });
+
+  @override
+  State<_DisableAdsModalContent> createState() => _DisableAdsModalContentState();
+}
+
+class _DisableAdsModalContentState extends State<_DisableAdsModalContent> {
+  bool _showCheckbox = false;
+  bool _isChecked = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() => _showCheckbox = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(
+              Icons.campaign_rounded,
+              size: 48,
+              color: AppColors.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Sobre as Propagandas',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: colors.onSurface,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'As propagandas são usadas apenas para ajudar nos custos do projeto.\n\nElas foram pensadas para NUNCA atrapalhar a sua leitura de livros, HQs ou audição de audiobooks.\n\nSe preferir, você pode desativá-las totalmente de graça. Mas se quiser apoiar o app de outra forma para continuarmos trazendo melhorias, considere fazer uma contribuição voluntária!',
+              style: TextStyle(
+                fontSize: 14,
+                color: colors.onSurfaceVariant,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            if (_showCheckbox)
+              Row(
+                children: [
+                  Checkbox(
+                    value: _isChecked,
+                    onChanged: (val) => setState(() => _isChecked = val ?? false),
+                    activeColor: AppColors.primary,
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _isChecked = !_isChecked),
+                      child: Text(
+                        'Li e concordo em desativar as propagandas',
+                        style: TextStyle(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            if (_showCheckbox) const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: _isChecked
+                  ? () {
+                      widget.ref.read(adsProvider.notifier).toggleAds(false);
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Propagandas desativadas com sucesso.'),
+                          backgroundColor: AppColors.localAccent,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  : null,
+              icon: const Icon(Icons.block_rounded),
+              label: const Text('Desativar Propagandas'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors.surfaceContainerHighest,
+                foregroundColor: colors.onSurface,
+                disabledBackgroundColor: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                disabledForegroundColor: colors.onSurface.withValues(alpha: 0.3),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: widget.onDonationTap,
+              icon: const Icon(Icons.volunteer_activism_rounded),
+              label: const Text('Quero ajudar com PIX'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.onPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () {
+                widget.ref.read(adsProvider.notifier).toggleAds(true);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Propagandas ativadas. Obrigado pelo apoio!'),
+                    backgroundColor: AppColors.primary,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              child: const Text('Manter propagandas ativas'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
