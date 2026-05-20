@@ -14,6 +14,7 @@ import '../../auth/presentation/auth_controller.dart';
 import '../../library/domain/library_item.dart';
 import '../../library/presentation/library_controller.dart';
 import 'audio_queue_provider.dart';
+import 'audiobook_player_page.dart';
 
 class AudiobooksPage extends ConsumerStatefulWidget {
   const AudiobooksPage({super.key});
@@ -130,15 +131,30 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
             final continueItems = audiobooks
                 .where((item) => (item.positionSeconds ?? 0) > 0)
                 .toList();
+            final showContinue = continueItems.isNotEmpty && audiobooks.length >= 4;
 
             return CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(child: _buildHeader(audiobooks.length)),
                 SliverToBoxAdapter(child: _buildSearch()),
-                if (continueItems.isNotEmpty)
+                if (showContinue) ...[
                   SliverToBoxAdapter(
                     child: _buildContinueSection(continueItems),
                   ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+                      child: Text(
+                        'Todos os áudios',
+                        style: TextStyle(
+                          color: colors.onSurface,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 if (audiobooks.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
@@ -351,7 +367,7 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
   }
 }
 
-class _AudiobookTile extends StatelessWidget {
+class _AudiobookTile extends ConsumerWidget {
   final LibraryItem item;
   final VoidCallback onTap;
   final void Function(LibraryItem item)? onAddToQueue;
@@ -365,10 +381,59 @@ class _AudiobookTile extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final position = item.positionSeconds ?? 0;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentItemId = ref.watch(currentAudiobookItemIdProvider);
+    final isCurrent = currentItemId == item.id;
+
+    if (!isCurrent) {
+      return _buildTile(
+        context,
+        isPlaying: false,
+        position: item.positionSeconds ?? 0,
+        percent: item.progress.clamp(0.0, 1.0),
+      );
+    }
+
+    final player = ref.watch(audiobookAudioPlayerProvider);
+
+    return StreamBuilder<bool>(
+      stream: player.playingStream,
+      initialData: player.playing,
+      builder: (context, playingSnapshot) {
+        final isPlaying = playingSnapshot.data ?? false;
+
+        return StreamBuilder<Duration>(
+          stream: player.positionStream,
+          initialData: player.position,
+          builder: (context, positionSnapshot) {
+            final positionDuration =
+                positionSnapshot.data ?? Duration(seconds: item.positionSeconds ?? 0);
+            final position = positionDuration.inSeconds;
+
+            final duration = item.durationSeconds ?? 0;
+            final percent = duration > 0
+                ? (position / duration).clamp(0.0, 1.0)
+                : item.progress.clamp(0.0, 1.0);
+
+            return _buildTile(
+              context,
+              isPlaying: isPlaying,
+              position: position,
+              percent: percent,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTile(
+    BuildContext context, {
+    required bool isPlaying,
+    required int position,
+    required double percent,
+  }) {
     final duration = item.durationSeconds ?? 0;
-    final percent = item.progress.clamp(0.0, 1.0);
     final hasProgress = position > 0 || percent > 0;
 
     return InkWell(
@@ -390,8 +455,8 @@ class _AudiobookTile extends StatelessWidget {
                 color: AppColors.audioAccent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(
-                Icons.play_arrow_rounded,
+              child: Icon(
+                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                 color: AppColors.audioAccent,
                 size: 30,
               ),
@@ -414,7 +479,9 @@ class _AudiobookTile extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     hasProgress
-                        ? 'Parou em ${Formatters.formatDuration(position)}'
+                        ? (isPlaying
+                            ? 'Reproduzindo ${Formatters.formatDuration(position)}'
+                            : 'Parou em ${Formatters.formatDuration(position)}')
                         : _fileLabel(item.localPath),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
