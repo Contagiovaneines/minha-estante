@@ -161,9 +161,20 @@ class LibraryItemCover extends StatelessWidget {
   Widget _buildCoverContent() {
     final thumbnailUrl = item.thumbnailUrl;
     if (thumbnailUrl != null && thumbnailUrl.isNotEmpty) {
-      return Image.network(
-        thumbnailUrl,
+      final uri = Uri.tryParse(thumbnailUrl);
+      if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+        return Image.network(
+          thumbnailUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => _buildGeneratedCover(),
+        );
+      }
+
+      return Image.file(
+        File(thumbnailUrl),
         fit: BoxFit.cover,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
         errorBuilder: (_, _, _) => _buildGeneratedCover(),
       );
     }

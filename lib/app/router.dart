@@ -18,6 +18,8 @@ import '../features/audio/presentation/audiobook_player_page.dart';
 import '../features/audio/presentation/audiobooks_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 import '../features/profile/presentation/privacy_page.dart';
+import '../features/profile/presentation/statistics_page.dart';
+import '../features/audio/presentation/queue_page.dart';
 import 'scaffold_with_nav.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -107,6 +109,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return TtsReaderPage(itemId: id);
         },
       ),
+      GoRoute(path: '/queue', builder: (context, state) => const QueuePage()),
       ShellRoute(
         builder: (context, state, child) => ScaffoldWithNav(child: child),
         routes: [
@@ -125,6 +128,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/privacy',
             builder: (context, state) => const PrivacyPage(),
+          ),
+          GoRoute(
+            path: '/statistics',
+            builder: (context, state) => const StatisticsPage(),
           ),
         ],
       ),

@@ -59,30 +59,54 @@ class _BookDetailView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
-            backgroundColor: AppColors.background,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             leading: IconButton(
               icon: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.surface.withValues(alpha: 0.9),
+                  color: colors.surface.withValues(alpha: 0.9),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.arrow_back_rounded,
-                  color: AppColors.textPrimary,
+                  color: colors.onSurface,
                   size: 20,
                 ),
               ),
               onPressed: () => context.pop(),
             ),
-            flexibleSpace: FlexibleSpaceBar(background: _buildCoverHero()),
+            actions: [
+              IconButton(
+                tooltip: 'Remover da estante',
+                onPressed: () => _confirmRemove(context, ref),
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surface.withValues(alpha: 0.9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.error,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: _buildCoverHero(context),
+            ),
           ),
           SliverToBoxAdapter(
             child: Padding(
@@ -109,43 +133,43 @@ class _BookDetailView extends ConsumerWidget {
                     style: GoogleFonts.playfairDisplay(
                       fontSize: 26,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: colors.onSurface,
                     ),
                   ),
                   if (item.author != null) ...[
                     const SizedBox(height: 4),
                     Text(
                       item.author!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
-                        color: AppColors.textSecondary,
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                   ],
                   const SizedBox(height: 18),
-                  _buildManagementActions(ref),
+                  _buildManagementActions(context, ref),
                   if (item.progress > 0) ...[
                     const SizedBox(height: 20),
-                    _buildProgressCard(),
+                    _buildProgressCard(context),
                   ],
                   const SizedBox(height: 24),
                   _buildActions(context),
                   if (item.description != null) ...[
                     const SizedBox(height: 24),
-                    const Text(
+                    Text(
                       'Sinopse',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        color: colors.onSurface,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       item.description!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
-                        color: AppColors.textSecondary,
+                        color: colors.onSurfaceVariant,
                         height: 1.6,
                       ),
                     ),
@@ -160,7 +184,8 @@ class _BookDetailView extends ConsumerWidget {
     );
   }
 
-  Widget _buildCoverHero() {
+  Widget _buildCoverHero(BuildContext context) {
+    final background = Theme.of(context).scaffoldBackgroundColor;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -175,8 +200,8 @@ class _BookDetailView extends ConsumerWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                AppColors.background.withValues(alpha: 0.0),
-                AppColors.background.withValues(alpha: 0.55),
+                background.withValues(alpha: 0.0),
+                background.withValues(alpha: 0.55),
               ],
             ),
           ),
@@ -185,7 +210,8 @@ class _BookDetailView extends ConsumerWidget {
     );
   }
 
-  Widget _buildProgressCard() {
+  Widget _buildProgressCard(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final pages = item.totalPages > 0
         ? '${item.currentPage} / ${item.totalPages} paginas'
         : '';
@@ -194,21 +220,21 @@ class _BookDetailView extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text(
+              Text(
                 'Progresso',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
+                  color: colors.onSurfaceVariant,
                 ),
               ),
               const Spacer(),
@@ -228,10 +254,7 @@ class _BookDetailView extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               pages,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
             ),
           ],
         ],
@@ -283,7 +306,9 @@ class _BookDetailView extends ConsumerWidget {
     );
   }
 
-  Widget _buildManagementActions(WidgetRef ref) {
+  Widget _buildManagementActions(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).colorScheme;
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -302,9 +327,7 @@ class _BookDetailView extends ConsumerWidget {
           selectedColor: AppColors.primary,
           checkmarkColor: AppColors.onPrimary,
           labelStyle: TextStyle(
-            color: item.isFavorite
-                ? AppColors.onPrimary
-                : AppColors.textSecondary,
+            color: item.isFavorite ? colors.onPrimary : colors.onSurfaceVariant,
             fontWeight: FontWeight.w700,
             fontSize: 12,
           ),
@@ -325,8 +348,8 @@ class _BookDetailView extends ConsumerWidget {
             selectedColor: AppColors.primary,
             labelStyle: TextStyle(
               color: item.status == status
-                  ? AppColors.onPrimary
-                  : AppColors.textSecondary,
+                  ? colors.onPrimary
+                  : colors.onSurfaceVariant,
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
@@ -339,8 +362,58 @@ class _BookDetailView extends ConsumerWidget {
               borderRadius: BorderRadius.circular(999),
             ),
           ),
+        ActionChip(
+          avatar: const Icon(
+            Icons.delete_outline_rounded,
+            size: 18,
+            color: AppColors.error,
+          ),
+          label: const Text('Remover'),
+          onPressed: () => _confirmRemove(context, ref),
+          labelStyle: const TextStyle(
+            color: AppColors.error,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+          side: BorderSide(color: AppColors.error.withValues(alpha: 0.45)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _confirmRemove(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remover da estante?'),
+        content: Text(
+          'Isso remove "${item.title}" da sua estante e apaga o progresso salvo no app. O arquivo original do celular nao sera apagado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Remover'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    await ref.read(libraryControllerProvider.notifier).removeItem(item.id);
+    if (!context.mounted) return;
+    context.go('/library');
   }
 
   Color get _coverColor {

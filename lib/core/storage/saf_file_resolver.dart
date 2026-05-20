@@ -53,7 +53,7 @@ class SafFileResolver {
     final decoded = Uri.decodeFull(uri);
     final lastPart = decoded.split('/').last;
     if (lastPart.contains('.')) return lastPart;
-    
+
     // Fallback: usa hash da URI para evitar conflitos
     return 'file_${uri.hashCode}.tmp';
   }

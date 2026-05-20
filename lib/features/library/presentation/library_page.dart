@@ -38,6 +38,8 @@ class LibraryPage extends ConsumerStatefulWidget {
 
 class _LibraryPageState extends ConsumerState<LibraryPage> {
   final _searchController = TextEditingController();
+  final _authorSearchController = TextEditingController();
+  final _collectionSearchController = TextEditingController();
   StreamSubscription<LocalFolderImportProgress>? _importProgressSub;
   StreamSubscription<NativeOpenedArchive>? _openedArchiveSub;
   bool _isLocalImporting = false;
@@ -46,12 +48,15 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   double? _importProgress;
   String _importMessage = 'Importando arquivos...';
   LibraryViewFilter _filter = LibraryViewFilter.all;
+  LibraryTypeFilter _typeFilter = LibraryTypeFilter.all;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(() => setState(() {}));
+    _authorSearchController.addListener(() => setState(() {}));
+    _collectionSearchController.addListener(() => setState(() {}));
     if (AndroidSafImportService.isSupported) {
       _importProgressSub = AndroidSafImportService.progressStream.listen(
         _handleImportProgress,
@@ -74,6 +79,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     _importProgressSub?.cancel();
     _openedArchiveSub?.cancel();
     _searchController.dispose();
+    _authorSearchController.dispose();
+    _collectionSearchController.dispose();
     super.dispose();
   }
 
@@ -508,7 +515,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final isOnline = _showOnlineAddOption;
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -522,7 +529,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
               children: [
                 Text(
                   isOnline ? 'Adicionar online' : 'Adicionar no celular',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -530,16 +537,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 ),
                 const SizedBox(height: 12),
                 if (isOnline)
-                  _AddOptionTile(
-                    icon: Icons.add_to_drive_rounded,
-                    title: 'Adicionar fonte do Drive',
-                    subtitle:
-                        'Cadastrar pasta ou arquivo público do Google Drive.',
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.push('/sources/add');
-                    },
-                  )
+                  const SizedBox.shrink()
                 else ...[
                   _AddOptionTile(
                     icon: Icons.folder_open_rounded,
@@ -587,7 +585,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       drawer: _buildDrawer(context),
       body: SafeArea(
         child: Stack(
@@ -654,7 +652,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       _importMessage,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -722,7 +720,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         _importMessage,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -733,7 +731,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       const SizedBox(width: 10),
                       Text(
                         percent,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.primary,
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -794,10 +792,21 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final query = _searchController.text;
     final visibleItems = items
         .where((item) => _filter.matches(item))
-        .where((item) => itemMatchesSearch(item, query))
+        .where(
+          (item) => itemMatchesSearch(
+            item,
+            query,
+            authorQuery: _authorSearchController.text,
+            collectionQuery: _collectionSearchController.text,
+          ),
+        )
         .toList();
     final localItems = visibleItems
         .where((item) => item.origin == ItemOrigin.local)
+        .toList();
+    // Apply type filter on top
+    final visibleItems2 = localItems
+        .where((item) => _typeFilter.matchesType(item))
         .toList();
     final lastOpenedItem = _lastOpenedItem(userId, items);
 
@@ -828,8 +837,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           ),
         SliverFillRemaining(
           child: _filter == LibraryViewFilter.all
-              ? _buildCollections(context, localItems)
-              : _buildGrid(context, localItems, isOnline: false),
+              ? _buildCollections(context, visibleItems2)
+              : _buildGrid(context, visibleItems2, isOnline: false),
         ),
       ],
     );
@@ -845,6 +854,166 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     );
   }
 
+  bool get _hasAdvancedSearch =>
+      _authorSearchController.text.trim().isNotEmpty ||
+      _collectionSearchController.text.trim().isNotEmpty ||
+      _typeFilter != LibraryTypeFilter.all;
+
+  int get _advancedFilterCount {
+    var count = 0;
+    if (_authorSearchController.text.trim().isNotEmpty) count++;
+    if (_collectionSearchController.text.trim().isNotEmpty) count++;
+    if (_typeFilter != LibraryTypeFilter.all) count++;
+    return count;
+  }
+
+  Future<void> _showAdvancedSearchSheet() async {
+    final authorController = TextEditingController(
+      text: _authorSearchController.text,
+    );
+    final collectionController = TextEditingController(
+      text: _collectionSearchController.text,
+    );
+    var selectedType = _typeFilter;
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: AppColors.surface,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, modalSetState) {
+              return SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    16,
+                    20,
+                    MediaQuery.of(context).viewInsets.bottom + 20,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Busca avancada',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.close_rounded),
+                            tooltip: 'Fechar',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: authorController,
+                        decoration: const InputDecoration(
+                          labelText: 'Autor',
+                          prefixIcon: Icon(Icons.person_search_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: collectionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Colecao ou estante',
+                          prefixIcon: Icon(Icons.collections_bookmark_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final type in LibraryTypeFilter.values)
+                            ChoiceChip(
+                              label: Text(type.label),
+                              selected: selectedType == type,
+                              onSelected: (_) =>
+                                  modalSetState(() => selectedType = type),
+                              selectedColor: AppColors.audioAccent,
+                              backgroundColor: AppColors.surface,
+                              labelStyle: TextStyle(
+                                color: selectedType == type
+                                    ? Colors.white
+                                    : AppColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                              side: BorderSide(
+                                color: selectedType == type
+                                    ? AppColors.audioAccent
+                                    : AppColors.border,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _authorSearchController.clear();
+                                  _collectionSearchController.clear();
+                                  _typeFilter = LibraryTypeFilter.all;
+                                });
+                                Navigator.pop(context);
+                              },
+                              icon: const Icon(Icons.filter_alt_off_rounded),
+                              label: const Text('Limpar'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _authorSearchController.text =
+                                      authorController.text;
+                                  _collectionSearchController.text =
+                                      collectionController.text;
+                                  _typeFilter = selectedType;
+                                });
+                                Navigator.pop(context);
+                              },
+                              icon: const Icon(Icons.check_rounded),
+                              label: const Text('Aplicar'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      authorController.dispose();
+      collectionController.dispose();
+    }
+  }
+
   Widget _buildSearchAndFilters() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
@@ -855,16 +1024,65 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
             decoration: InputDecoration(
               hintText: 'Buscar por titulo, autor ou estante',
               prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _searchController.text.isEmpty
-                  ? null
-                  : IconButton(
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_searchController.text.isNotEmpty)
+                    IconButton(
                       onPressed: _searchController.clear,
                       icon: const Icon(Icons.close_rounded),
                       tooltip: 'Limpar busca',
                     ),
+                  IconButton(
+                    onPressed: _showAdvancedSearchSheet,
+                    icon: Badge(
+                      isLabelVisible: _advancedFilterCount > 0,
+                      label: Text('$_advancedFilterCount'),
+                      child: Icon(
+                        Icons.tune_rounded,
+                        color: _hasAdvancedSearch
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                    tooltip: 'Busca avancada',
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 12),
+          if (_hasAdvancedSearch) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  if (_authorSearchController.text.trim().isNotEmpty)
+                    InputChip(
+                      label: Text('Autor: ${_authorSearchController.text}'),
+                      onDeleted: _authorSearchController.clear,
+                    ),
+                  if (_collectionSearchController.text.trim().isNotEmpty)
+                    InputChip(
+                      label: Text(
+                        'Colecao: ${_collectionSearchController.text}',
+                      ),
+                      onDeleted: _collectionSearchController.clear,
+                    ),
+                  if (_typeFilter != LibraryTypeFilter.all)
+                    InputChip(
+                      label: Text('Tipo: ${_typeFilter.label}'),
+                      onDeleted: () =>
+                          setState(() => _typeFilter = LibraryTypeFilter.all),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          // Status filters row
           SizedBox(
             height: 36,
             child: ListView.separated(
@@ -903,6 +1121,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   }
 
   Widget _buildHeader(BuildContext context, String userName) {
+    final colors = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
       child: Column(
@@ -914,12 +1134,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceContainer,
+                    color: colors.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.menu_rounded,
-                    color: AppColors.textPrimary,
+                    color: colors.onSurface,
                     size: 20,
                   ),
                 ),
@@ -956,7 +1176,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       radius: 18,
                       child: Text(
                         userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.onPrimary,
                           fontWeight: FontWeight.w700,
                           fontSize: 15,
@@ -976,18 +1196,18 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
               children: [
                 Text(
                   'Olá, $userName',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: colors.onSurface,
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Text(
+                Text(
                   'Sua biblioteca',
                   style: TextStyle(
                     fontSize: 15,
-                    color: AppColors.textSecondary,
+                    color: colors.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -999,8 +1219,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   }
 
   Widget _buildDrawer(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Drawer(
-      backgroundColor: AppColors.surface,
+      backgroundColor: colors.surface,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1016,7 +1238,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 ),
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: colors.outlineVariant),
             const SizedBox(height: 8),
             _DrawerTile(
               icon: Icons.menu_book_rounded,
@@ -1042,7 +1264,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 _syncLocalFolders();
               },
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: colors.outlineVariant),
             _DrawerTile(
               icon: Icons.person_outline_rounded,
               label: 'Perfil',
@@ -1069,7 +1291,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
             : Icons.phone_android_rounded,
         title: AppStrings.emptyLibrary,
         subtitle: isOnline
-            ? 'Adicione fontes do Google Drive na aba Fontes.'
+            ? 'Adicione arquivos pelo botão +.'
             : 'Toque no botão + para adicionar uma pasta ou um arquivo.',
       );
     }
@@ -1131,14 +1353,16 @@ class _CollectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: colors.outline),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -1187,8 +1411,8 @@ class _CollectionCard extends StatelessWidget {
                 children: [
                   Text(
                     collection.name,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: colors.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1198,8 +1422,8 @@ class _CollectionCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${collection.itemCount} arquivo(s)',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1229,13 +1453,15 @@ class _AddOptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: colors.outline),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Row(
@@ -1244,7 +1470,7 @@ class _AddOptionTile extends StatelessWidget {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: AppColors.surfaceContainer,
+                color: colors.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(icon, color: AppColors.primary),
@@ -1256,8 +1482,8 @@ class _AddOptionTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: colors.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1265,8 +1491,8 @@ class _AddOptionTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
                       fontSize: 12,
                       height: 1.25,
                     ),
@@ -1296,12 +1522,14 @@ class _DrawerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return ListTile(
       leading: Icon(icon, color: AppColors.primary, size: 22),
       title: Text(
         label,
-        style: const TextStyle(
-          color: AppColors.textPrimary,
+        style: TextStyle(
+          color: colors.onSurface,
           fontSize: 15,
           fontWeight: FontWeight.w600,
         ),

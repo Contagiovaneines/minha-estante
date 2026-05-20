@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
-
 class AppBottomNav extends StatelessWidget {
   final int currentIndex;
   final void Function(int) onTap;
@@ -14,12 +12,14 @@ class AppBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colors.surface,
         boxShadow: [
           BoxShadow(
-            color: AppColors.border.withValues(alpha: 0.4),
+            color: colors.shadow.withValues(alpha: 0.18),
             blurRadius: 16,
             offset: const Offset(0, -4),
           ),
@@ -72,13 +72,15 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.primary : Colors.transparent,
+          color: isActive ? colors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
@@ -87,14 +89,14 @@ class _NavItem extends StatelessWidget {
             Icon(
               icon,
               size: 22,
-              color: isActive ? AppColors.onPrimary : AppColors.textSecondary,
+              color: isActive ? colors.onPrimary : colors.onSurfaceVariant,
             ),
             if (isActive) ...[
               const SizedBox(width: 6),
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.onPrimary,
+                style: TextStyle(
+                  color: colors.onPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),

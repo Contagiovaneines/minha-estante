@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
-
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -20,6 +18,8 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Center(
       child: SingleChildScrollView(
         child: Padding(
@@ -31,28 +31,25 @@ class EmptyState extends StatelessWidget {
                 width: 88,
                 height: 88,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceContainer,
+                  color: colors.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: Icon(icon, size: 44, color: AppColors.border),
+                child: Icon(icon, size: 44, color: colors.outline),
               ),
               const SizedBox(height: 20),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: colors.onSurface,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 14, color: colors.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
               if (actionLabel != null && onAction != null) ...[

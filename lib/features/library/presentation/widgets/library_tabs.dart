@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_strings.dart';
 
 class LibraryTabs extends StatelessWidget {
   final TabController controller;
@@ -18,8 +17,8 @@ class LibraryTabs extends StatelessWidget {
       indicatorSize: TabBarIndicatorSize.label,
       labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
       tabs: const [
-        Tab(text: AppStrings.online),
-        Tab(text: AppStrings.local),
+        Tab(text: 'Online'),
+        Tab(text: 'Celular'),
       ],
     );
   }

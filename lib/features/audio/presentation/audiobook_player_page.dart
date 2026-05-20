@@ -15,6 +15,9 @@ import '../../auth/presentation/auth_controller.dart';
 import '../../library/domain/library_item.dart';
 import '../../library/domain/reading_progress.dart';
 import '../../library/presentation/library_controller.dart';
+import '../../library/presentation/widgets/library_item_cover.dart';
+import '../domain/m4b_chapter_reader.dart';
+import 'audio_queue_provider.dart';
 
 final audiobookAudioPlayerProvider = Provider<AudioPlayer>((ref) {
   final player = AudioPlayer();
@@ -59,6 +62,8 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
   Duration _duration = Duration.zero;
   DateTime _lastAutoSave = DateTime.fromMillisecondsSinceEpoch(0);
   double _speed = 1.0;
+  List<M4bChapter> _chapters = [];
+  int _currentChapterIndex = 0;
 
   @override
   void initState() {
@@ -120,6 +125,14 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
           initialPosition: _position,
         );
         ref.read(currentAudiobookItemIdProvider.notifier).set(item.id);
+        // Load M4B chapters asynchronously
+        if (item.localPath != null) {
+          M4bChapterReader.readChapters(item.localPath!).then((chapters) {
+            if (mounted && chapters.isNotEmpty) {
+              setState(() => _chapters = chapters);
+            }
+          });
+        }
       } else {
         setState(() {
           _position = _player.position;
@@ -146,11 +159,27 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
       if (!mounted) return;
       setState(() => _isPlaying = state.playing);
       if (!state.playing) unawaited(_saveProgress());
+
+      // Auto-advance queue when track finishes
+      if (state.processingState == ProcessingState.completed) {
+        _advanceQueue();
+      }
     });
 
     _positionSub = _player.positionStream.listen((position) {
       if (!mounted) return;
-      setState(() => _position = position);
+      setState(() {
+        _position = position;
+        // Update current chapter index
+        if (_chapters.isNotEmpty) {
+          for (int i = _chapters.length - 1; i >= 0; i--) {
+            if (position >= _chapters[i].start) {
+              _currentChapterIndex = i;
+              break;
+            }
+          }
+        }
+      });
 
       final now = DateTime.now();
       if (now.difference(_lastAutoSave).inSeconds >= 20) {
@@ -250,6 +279,34 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
     await _player.setSpeed(next);
   }
 
+  /// Avança para o próximo item da fila ao terminar.
+  void _advanceQueue() {
+    final queue = ref.read(audioQueueProvider);
+    if (!queue.hasNext) return;
+    ref.read(audioQueueProvider.notifier).advance();
+    final nextId = queue.advance().currentId;
+    if (nextId != null && mounted) {
+      context.pushReplacement('/audio/$nextId');
+    }
+  }
+
+  void _showChapters() {
+    if (_chapters.isEmpty) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ChaptersSheet(
+        chapters: _chapters,
+        currentIndex: _currentChapterIndex,
+        position: _position,
+        onTap: (chapter) {
+          _player.seek(chapter.start);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = _item;
@@ -309,6 +366,7 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
   }
 
   Widget _buildTopBar(BuildContext context) {
+    final queue = ref.watch(audioQueueProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Row(
@@ -327,6 +385,47 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
             tooltip: 'Minimizar',
           ),
           const Spacer(),
+          if (_chapters.isNotEmpty)
+            IconButton(
+              onPressed: _showChapters,
+              icon: const Icon(
+                Icons.list_rounded,
+                color: AppColors.textSecondary,
+              ),
+              tooltip: 'Capítulos',
+            ),
+          if (queue.isNotEmpty)
+            IconButton(
+              onPressed: () => context.push('/queue'),
+              icon: Stack(
+                children: [
+                  const Icon(
+                    Icons.queue_music_rounded,
+                    color: AppColors.textSecondary,
+                  ),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: AppColors.audioAccent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${queue.itemIds.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              tooltip: 'Fila (${queue.itemIds.length})',
+            ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
@@ -357,6 +456,19 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
   }
 
   Widget _buildCoverArt() {
+    final item = _item;
+    if (item != null) {
+      return SizedBox(
+        width: 220,
+        height: 220,
+        child: LibraryItemCover(
+          item: item,
+          borderRadius: BorderRadius.circular(24),
+          iconSize: 90,
+        ),
+      );
+    }
+
     return Container(
       width: 220,
       height: 220,
@@ -531,6 +643,160 @@ class _AudiobookPlayerPageState extends ConsumerState<AudiobookPlayerPage> {
         ),
         const SizedBox(height: 40),
       ],
+    );
+  }
+}
+
+// ─── Chapters Sheet ───────────────────────────────────────────────────────────
+
+class _ChaptersSheet extends StatelessWidget {
+  final List<M4bChapter> chapters;
+  final int currentIndex;
+  final Duration position;
+  final void Function(M4bChapter) onTap;
+
+  const _ChaptersSheet({
+    required this.chapters,
+    required this.currentIndex,
+    required this.position,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Row(
+              children: [
+                Text(
+                  'Capítulos',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.audioAccent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${chapters.length}',
+                    style: const TextStyle(
+                      color: AppColors.audioAccent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Flexible(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              itemCount: chapters.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 4),
+              itemBuilder: (context, i) {
+                final ch = chapters[i];
+                final isCurrent = i == currentIndex;
+                return InkWell(
+                  onTap: () {
+                    Navigator.pop(context);
+                    onTap(ch);
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isCurrent
+                          ? AppColors.audioAccent.withValues(alpha: 0.1)
+                          : Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isCurrent
+                            ? AppColors.audioAccent
+                            : Theme.of(
+                                context,
+                              ).colorScheme.outline.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isCurrent
+                              ? Icons.play_arrow_rounded
+                              : Icons.music_note_rounded,
+                          color: isCurrent
+                              ? AppColors.audioAccent
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            ch.title,
+                            style: TextStyle(
+                              color: isCurrent
+                                  ? AppColors.audioAccent
+                                  : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: isCurrent
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          ch.formattedStart,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

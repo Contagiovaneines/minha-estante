@@ -1,8 +1,12 @@
 package com.minhaestante.minha_estante
 
 import android.app.Activity
+import android.graphics.Bitmap
 import android.content.Intent
+import android.graphics.pdf.PdfRenderer
+import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import io.flutter.embedding.engine.FlutterEngine
@@ -24,16 +28,21 @@ import com.github.junrar.Archive
 class MainActivity : AudioServiceActivity() {
     private val channelName = "minha_estante/saf_import"
     private val archiveChannelName = "minha_estante/native_archive"
+    private val metadataChannelName = "minha_estante/file_metadata"
+    private val homeWidgetChannelName = "minha_estante/home_widget"
     private val pickFolderRequestCode = 8301
     private val maxArchivePages = 2000
     private val maxArchiveBytes = 1024L * 1024L * 1024L
     private val copyBufferSize = 1024 * 1024
     private val importExecutor = Executors.newSingleThreadExecutor()
     private val archiveExecutor = Executors.newSingleThreadExecutor()
+    private val metadataExecutor = Executors.newSingleThreadExecutor()
     private var pendingPickResult: MethodChannel.Result? = null
     private var pendingArchiveOpen: Map<String, Any?>? = null
     private lateinit var safChannel: MethodChannel
     private lateinit var archiveChannel: MethodChannel
+    private lateinit var metadataChannel: MethodChannel
+    private lateinit var homeWidgetChannel: MethodChannel
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -84,6 +93,52 @@ class MainActivity : AudioServiceActivity() {
                     val payload = pendingArchiveOpen ?: archiveIntentPayload(intent)
                     pendingArchiveOpen = null
                     result.success(payload)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        metadataChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            metadataChannelName
+        )
+        metadataChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "extractFileMetadata" -> {
+                    val path = call.argument<String>("path")
+                    val itemId = call.argument<String>("itemId")
+                    val type = call.argument<String>("type")
+                    if (path.isNullOrBlank()) {
+                        result.error("INVALID_ARGS", "Caminho invalido.", null)
+                        return@setMethodCallHandler
+                    }
+                    extractFileMetadataAsync(path, itemId, type, result)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        homeWidgetChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            homeWidgetChannelName
+        )
+        homeWidgetChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "update" -> {
+                    val title = call.argument<String>("title").orEmpty()
+                    val subtitle = call.argument<String>("subtitle").orEmpty()
+                    val progress = call.argument<Number>("progress")?.toFloat() ?: 0f
+                    MinhaEstanteWidgetProvider.saveAndUpdate(
+                        context = this,
+                        title = title,
+                        subtitle = subtitle,
+                        progress = progress
+                    )
+                    result.success(null)
+                }
+                "clear" -> {
+                    MinhaEstanteWidgetProvider.clear(this)
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }
@@ -727,6 +782,159 @@ class MainActivity : AudioServiceActivity() {
             }
         }
         return null
+    }
+
+    private fun extractFileMetadataAsync(
+        path: String,
+        itemId: String?,
+        type: String?,
+        result: MethodChannel.Result
+    ) {
+        metadataExecutor.execute {
+            val metadata = try {
+                val file = File(path)
+                if (!file.exists() || !file.isFile || !file.canRead()) {
+                    emptyMap<String, Any?>()
+                } else {
+                    extractFileMetadata(file, itemId, type)
+                }
+            } catch (_: Throwable) {
+                emptyMap<String, Any?>()
+            }
+
+            runOnUiThread {
+                result.success(metadata)
+            }
+        }
+    }
+
+    private fun extractFileMetadata(
+        file: File,
+        itemId: String?,
+        type: String?
+    ): Map<String, Any?> {
+        val lowerName = file.name.lowercase(Locale.ROOT)
+        val normalizedType = type?.lowercase(Locale.ROOT)
+
+        return when {
+            normalizedType == "audio" || isAudioFile(lowerName) -> extractAudioMetadata(file, itemId)
+            normalizedType == "pdf" || lowerName.endsWith(".pdf") -> extractPdfMetadata(file, itemId)
+            else -> emptyMap()
+        }
+    }
+
+    private fun extractAudioMetadata(file: File, itemId: String?): Map<String, Any?> {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+
+            val durationMs = retriever.extractMetadata(
+                MediaMetadataRetriever.METADATA_KEY_DURATION
+            )?.toLongOrNull() ?: 0L
+            val embeddedPicture = retriever.embeddedPicture
+
+            return mapOf(
+                "title" to firstNonBlank(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                ),
+                "author" to firstNonBlank(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR),
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST),
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST),
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER)
+                ),
+                "durationSeconds" to if (durationMs > 0L) (durationMs / 1000L).toInt() else null,
+                "thumbnailPath" to embeddedPicture?.let { saveEmbeddedCover(it, itemId ?: sha1(file.absolutePath)) }
+            ).filterValues { it != null }
+        } finally {
+            try {
+                retriever.release()
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    private fun extractPdfMetadata(file: File, itemId: String?): Map<String, Any?> {
+        val result = mutableMapOf<String, Any?>()
+        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+            PdfRenderer(descriptor).use { renderer ->
+                result["totalPages"] = renderer.pageCount
+                if (renderer.pageCount > 0) {
+                    renderer.openPage(0).use { page ->
+                        val sourceWidth = page.width.coerceAtLeast(1)
+                        val sourceHeight = page.height.coerceAtLeast(1)
+                        val targetWidth = minOf(512, sourceWidth).coerceAtLeast(1)
+                        val scale = targetWidth.toDouble() / sourceWidth.toDouble()
+                        val targetHeight = (sourceHeight * scale).toInt().coerceAtLeast(1)
+                        val bitmap = Bitmap.createBitmap(
+                            targetWidth,
+                            targetHeight,
+                            Bitmap.Config.ARGB_8888
+                        )
+                        try {
+                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            result["thumbnailPath"] = saveBitmapCover(
+                                bitmap,
+                                itemId ?: sha1(file.absolutePath)
+                            )
+                        } finally {
+                            bitmap.recycle()
+                        }
+                    }
+                }
+            }
+        }
+        return result.filterValues { it != null }
+    }
+
+    private fun saveEmbeddedCover(bytes: ByteArray, itemId: String): String {
+        val extension = when {
+            bytes.size >= 8 &&
+                bytes[0] == 0x89.toByte() &&
+                bytes[1] == 0x50.toByte() &&
+                bytes[2] == 0x4E.toByte() &&
+                bytes[3] == 0x47.toByte() -> ".png"
+            bytes.size >= 12 &&
+                bytes[0] == 0x52.toByte() &&
+                bytes[1] == 0x49.toByte() &&
+                bytes[2] == 0x46.toByte() &&
+                bytes[3] == 0x46.toByte() &&
+                bytes[8] == 0x57.toByte() &&
+                bytes[9] == 0x45.toByte() &&
+                bytes[10] == 0x42.toByte() &&
+                bytes[11] == 0x50.toByte() -> ".webp"
+            else -> ".jpg"
+        }
+        val output = metadataCoverFile(itemId, extension)
+        output.writeBytes(bytes)
+        return output.absolutePath
+    }
+
+    private fun saveBitmapCover(bitmap: Bitmap, itemId: String): String {
+        val output = metadataCoverFile(itemId, ".png")
+        FileOutputStream(output).use { stream ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
+        }
+        return output.absolutePath
+    }
+
+    private fun metadataCoverFile(itemId: String, extension: String): File {
+        val directory = File(filesDir, "metadata_covers").apply { mkdirs() }
+        val safeName = sanitize(itemId).take(80).ifBlank { "cover" }
+        return File(directory, "$safeName$extension")
+    }
+
+    private fun firstNonBlank(vararg values: String?): String? {
+        return values.firstOrNull { !it.isNullOrBlank() }?.trim()
+    }
+
+    private fun isAudioFile(lowerName: String): Boolean {
+        return lowerName.endsWith(".mp3") ||
+            lowerName.endsWith(".m4a") ||
+            lowerName.endsWith(".m4b") ||
+            lowerName.endsWith(".aac") ||
+            lowerName.endsWith(".wav") ||
+            lowerName.endsWith(".opus")
     }
 
     private fun archiveIntentPayload(intent: Intent?): Map<String, Any?>? {

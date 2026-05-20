@@ -15,8 +15,13 @@ import 'ebook_format_support.dart';
 class BookTextSegment {
   final String title;
   final String text;
+  final int? pageNumber;
 
-  const BookTextSegment({required this.title, required this.text});
+  const BookTextSegment({
+    required this.title,
+    required this.text,
+    this.pageNumber,
+  });
 }
 
 class BookTextExtractionResult {
@@ -122,6 +127,7 @@ class BookTextExtractor {
           _splitText(
             pageText.fullText,
             titlePrefix: 'Pagina ${page.pageNumber}',
+            pageNumber: page.pageNumber,
           ),
         );
       }
@@ -243,7 +249,11 @@ class BookTextExtractor {
     );
   }
 
-  List<BookTextSegment> _splitText(String text, {required String titlePrefix}) {
+  List<BookTextSegment> _splitText(
+    String text, {
+    required String titlePrefix,
+    int? pageNumber,
+  }) {
     final normalized = text
         .replaceAll('\u00a0', ' ')
         .replaceAll(RegExp(r'[ \t]+'), ' ')
@@ -269,6 +279,7 @@ class BookTextExtractor {
               ? titlePrefix
               : '$titlePrefix.${segments.length + 1}',
           text: value,
+          pageNumber: pageNumber,
         ),
       );
       buffer.clear();
@@ -284,6 +295,7 @@ class BookTextExtractor {
                   ? titlePrefix
                   : '$titlePrefix.${segments.length + 1}',
               text: chunk,
+              pageNumber: pageNumber,
             ),
           );
         }

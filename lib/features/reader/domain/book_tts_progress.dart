@@ -4,6 +4,8 @@ class BookTtsProgress {
   final int totalSegments;
   final double percent;
   final String language;
+  final String? voiceName;
+  final String? voiceLocale;
   final double speechRate;
   final DateTime updatedAt;
 
@@ -13,6 +15,8 @@ class BookTtsProgress {
     required this.totalSegments,
     required this.percent,
     required this.language,
+    this.voiceName,
+    this.voiceLocale,
     required this.speechRate,
     required this.updatedAt,
   });
@@ -23,6 +27,8 @@ class BookTtsProgress {
     'totalSegments': totalSegments,
     'percent': percent,
     'language': language,
+    'voiceName': voiceName,
+    'voiceLocale': voiceLocale,
     'speechRate': speechRate,
     'updatedAt': updatedAt.toIso8601String(),
   };
@@ -34,6 +40,8 @@ class BookTtsProgress {
       totalSegments: (json['totalSegments'] as num?)?.toInt() ?? 0,
       percent: (json['percent'] as num?)?.toDouble() ?? 0,
       language: json['language'] as String? ?? 'pt-BR',
+      voiceName: json['voiceName'] as String?,
+      voiceLocale: json['voiceLocale'] as String?,
       speechRate: (json['speechRate'] as num?)?.toDouble() ?? 0.45,
       updatedAt:
           DateTime.tryParse(json['updatedAt'] as String? ?? '') ??

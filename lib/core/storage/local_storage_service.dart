@@ -9,12 +9,16 @@ class LocalStorageService {
   static const String _itemsBox = 'items';
   static const String _progressBox = 'progress';
   static const String _settingsBox = 'settings';
+  static const String _bookmarksBox = 'bookmarks';
+  static const String _sessionsBox = 'sessions';
 
   static late Box<String> _users;
   static late Box<String> _sources;
   static late Box<String> _items;
   static late Box<String> _progress;
   static late Box<String> _settings;
+  static late Box<String> _bookmarks;
+  static late Box<String> _sessions;
 
   static Future<void> init() async {
     _users = await Hive.openBox<String>(_usersBox);
@@ -22,6 +26,8 @@ class LocalStorageService {
     _items = await Hive.openBox<String>(_itemsBox);
     _progress = await Hive.openBox<String>(_progressBox);
     _settings = await Hive.openBox<String>(_settingsBox);
+    _bookmarks = await Hive.openBox<String>(_bookmarksBox);
+    _sessions = await Hive.openBox<String>(_sessionsBox);
   }
 
   static Future<void> saveUser(Map<String, dynamic> user) async {
@@ -163,16 +169,10 @@ class LocalStorageService {
     await _settings.delete(_lastOpenedItemKey(userId));
   }
 
-  static bool hasDriveSetup(String userId) {
-    return _settings.containsKey('drive_setup_$userId');
-  }
-
-  static bool isDriveEnabled(String userId) {
-    return _settings.get('drive_enabled_$userId') == 'true';
-  }
-
-  static String? getDriveApiKey(String userId) {
-    return _settings.get('drive_api_key_$userId');
+  static Future<void> clearItemState(String userId, String itemId) async {
+    await _progress.delete('${userId}_$itemId');
+    await _bookmarks.delete(_bookmarkKey(userId, itemId));
+    await _settings.delete(_ttsProgressKey(userId, itemId));
   }
 
   static String? getProfileImage(String userId) {
@@ -183,18 +183,99 @@ class LocalStorageService {
     await _settings.put('profile_image_$userId', path);
   }
 
-  static Future<void> saveDriveSettings(
-    String userId, {
-    required bool enabled,
-    String? apiKey,
-  }) async {
-    await _settings.put('drive_setup_$userId', 'true');
-    await _settings.put('drive_enabled_$userId', enabled ? 'true' : 'false');
-    if (apiKey != null && apiKey.isNotEmpty) {
-      await _settings.put('drive_api_key_$userId', apiKey);
-    } else {
-      await _settings.delete('drive_api_key_$userId');
+  // ─── Bookmarks ─────────────────────────────────────────────────────────────
+
+  static String _bookmarkKey(String userId, String itemId) =>
+      '${userId}_$itemId';
+
+  static Future<void> saveBookmark(
+    String userId,
+    Map<String, dynamic> bookmark,
+  ) async {
+    final itemId = bookmark['itemId'] as String;
+    final existing = getBookmarks(userId, itemId);
+    existing.removeWhere((b) => b['id'] == bookmark['id']);
+    existing.add(bookmark);
+    await _bookmarks.put(_bookmarkKey(userId, itemId), jsonEncode(existing));
+  }
+
+  static List<Map<String, dynamic>> getBookmarks(String userId, String itemId) {
+    final raw = _bookmarks.get(_bookmarkKey(userId, itemId));
+    if (raw == null) return [];
+    final list = jsonDecode(raw) as List<dynamic>;
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  static Future<void> deleteBookmark(
+    String userId,
+    String itemId,
+    String bookmarkId,
+  ) async {
+    final existing = getBookmarks(userId, itemId);
+    existing.removeWhere((b) => b['id'] == bookmarkId);
+    await _bookmarks.put(_bookmarkKey(userId, itemId), jsonEncode(existing));
+  }
+
+  static List<Map<String, dynamic>> getAllBookmarks(String userId) {
+    final result = <Map<String, dynamic>>[];
+    for (final key in _bookmarks.keys) {
+      if (key.toString().startsWith('${userId}_')) {
+        final raw = _bookmarks.get(key);
+        if (raw != null) {
+          final list = jsonDecode(raw) as List<dynamic>;
+          result.addAll(list.cast<Map<String, dynamic>>());
+        }
+      }
     }
+    return result;
+  }
+
+  // ─── Reading Sessions ───────────────────────────────────────────────────────
+
+  /// Registra uma sessão de leitura com data e duração em segundos.
+  static Future<void> saveReadingSession({
+    required String userId,
+    required String itemId,
+    required int durationSeconds,
+  }) async {
+    final key = 'sessions_$userId';
+    final raw = _sessions.get(key);
+    final sessions = raw != null
+        ? (jsonDecode(raw) as List<dynamic>).cast<Map<String, dynamic>>()
+        : <Map<String, dynamic>>[];
+    sessions.add({
+      'itemId': itemId,
+      'date': DateTime.now().toIso8601String(),
+      'durationSeconds': durationSeconds,
+    });
+    // Keep max 500 sessions to avoid storage bloat
+    final trimmed = sessions.length > 500
+        ? sessions.sublist(sessions.length - 500)
+        : sessions;
+    await _sessions.put(key, jsonEncode(trimmed));
+  }
+
+  static List<Map<String, dynamic>> getReadingSessions(String userId) {
+    final raw = _sessions.get('sessions_$userId');
+    if (raw == null) return [];
+    return (jsonDecode(raw) as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  // ─── Upsert (used by backup restore) ───────────────────────────────────────
+
+  /// Sobrescreve ou adiciona um item pelo id dentro da lista do userId.
+  static Future<void> upsertItem(
+    String userId,
+    Map<String, dynamic> item,
+  ) async {
+    final existing = getItems(userId);
+    final idx = existing.indexWhere((e) => e['id'] == item['id']);
+    if (idx >= 0) {
+      existing[idx] = item;
+    } else {
+      existing.add(item);
+    }
+    await saveItems(userId, existing);
   }
 
   static Future<void> clearCache(String userId) async {

@@ -7,12 +7,15 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/storage/local_storage_service.dart';
 import '../../../core/storage/saf_file_resolver.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../library/domain/library_item.dart';
 import '../../library/domain/reading_progress.dart';
 import '../../library/presentation/library_controller.dart';
+import '../domain/bookmark.dart';
 import '../domain/ebook_format_support.dart';
+import 'widgets/bookmarks_sheet.dart';
 
 class EpubReaderPage extends ConsumerStatefulWidget {
   final String itemId;
@@ -41,6 +44,8 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
   bool _isLoaded = false;
   bool _fallbackProgressApplied = false;
   String? _errorMessage;
+  List<Bookmark> _bookmarks = [];
+  DateTime? _sessionStart;
 
   @override
   void initState() {
@@ -51,6 +56,19 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
   @override
   void dispose() {
     _saveDebounce?.cancel();
+    // Record reading session before dispose
+    if (_sessionStart != null && _item != null) {
+      final user = ref.read(authControllerProvider).value;
+      final dur = DateTime.now().difference(_sessionStart!).inSeconds;
+      if (user != null && dur > 5) {
+        LocalStorageService.saveReadingSession(
+          userId: user.id,
+          itemId: _item!.id,
+          durationSeconds: dur,
+        );
+      }
+      _sessionStart = null;
+    }
     unawaited(_saveProgress());
     super.dispose();
   }
@@ -98,6 +116,8 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
         _isLoading = true;
         _errorMessage = null;
       });
+      _loadBookmarks();
+      _sessionStart = DateTime.now();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -160,6 +180,69 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
     _saveDebounce = Timer(const Duration(milliseconds: 900), () {
       unawaited(_saveProgress());
     });
+  }
+
+  void _loadBookmarks() {
+    final user = ref.read(authControllerProvider).value;
+    final item = _item;
+    if (user == null || item == null) return;
+    final raw = LocalStorageService.getBookmarks(user.id, item.id);
+    setState(() {
+      _bookmarks = raw.map((j) => Bookmark.fromJson(j)).toList()
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    });
+  }
+
+  Future<void> _addBookmark() async {
+    final user = ref.read(authControllerProvider).value;
+    final item = _item;
+    if (user == null || item == null) return;
+    final cfi = _lastLocation?.startCfi ?? '';
+    if (cfi.isEmpty) return;
+    final pct = (_progress * 100).toStringAsFixed(0);
+    final bm = Bookmark.createEpub(
+      itemId: item.id,
+      userId: user.id,
+      cfi: cfi,
+      label: 'Trecho em $pct%',
+    );
+    await LocalStorageService.saveBookmark(user.id, bm.toJson());
+    _loadBookmarks();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Marcador adicionado!'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteBookmark(Bookmark bm) async {
+    final user = ref.read(authControllerProvider).value;
+    final item = _item;
+    if (user == null || item == null) return;
+    await LocalStorageService.deleteBookmark(user.id, item.id, bm.id);
+    _loadBookmarks();
+  }
+
+  void _showBookmarks() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => BookmarksSheet(
+        bookmarks: _bookmarks,
+        onTap: (bm) {
+          if (bm.cfi != null && bm.cfi!.isNotEmpty && _isLoaded) {
+            _epubController.display(cfi: bm.cfi!);
+          }
+        },
+        onDelete: _deleteBookmark,
+      ),
+    );
   }
 
   void _onRelocated(EpubLocation location) {
@@ -407,6 +490,33 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
                   onPressed: () => _changeFontSize(1),
                   tooltip: 'Aumentar fonte',
                   icon: Icon(Icons.text_increase_rounded, color: textColor),
+                ),
+                IconButton(
+                  onPressed: _addBookmark,
+                  tooltip: 'Adicionar marcador',
+                  icon: Icon(Icons.bookmark_add_rounded, color: textColor),
+                ),
+                IconButton(
+                  onPressed: _showBookmarks,
+                  tooltip: 'Ver marcadores',
+                  icon: Stack(
+                    children: [
+                      Icon(Icons.bookmarks_rounded, color: textColor),
+                      if (_bookmarks.isNotEmpty)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),

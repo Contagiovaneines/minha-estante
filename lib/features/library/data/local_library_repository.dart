@@ -4,17 +4,21 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/services/home_widget_service.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../../core/storage/saf_file_resolver.dart';
 import 'android_saf_import_service.dart';
 import '../domain/library_item.dart';
 import '../domain/local_folder_import.dart';
 import '../domain/local_folder_source.dart';
+import '../domain/library_metadata_service.dart';
 import '../domain/reading_progress.dart';
 import 'library_repository.dart';
 import '../../reader/domain/cbr_to_cbz_converter_service.dart';
 
 class LocalLibraryRepository implements LibraryRepository {
+  final LibraryMetadataService _metadataService = LibraryMetadataService();
+
   static const _supportedExtensions = {
     'cbr',
     'cbz',
@@ -219,9 +223,12 @@ class LocalLibraryRepository implements LibraryRepository {
   @override
   Future<void> addItem(String userId, LibraryItem item) async {
     final items = await getItems(userId);
-    final exists = items.any((e) => e.id == item.id || _hasSameTitle(e, item));
+    final enrichedItem = await _metadataService.enrich(item);
+    final exists = items.any(
+      (e) => e.id == enrichedItem.id || _hasSameTitle(e, enrichedItem),
+    );
     if (!exists) {
-      items.add(item);
+      items.add(enrichedItem);
       await saveItems(userId, items);
     }
   }
@@ -231,8 +238,10 @@ class LocalLibraryRepository implements LibraryRepository {
     final items = await getItems(userId);
     items.removeWhere((e) => e.id == itemId);
     await saveItems(userId, items);
+    await LocalStorageService.clearItemState(userId, itemId);
     if (LocalStorageService.getLastOpenedItemId(userId) == itemId) {
       await LocalStorageService.clearLastOpenedItemId(userId);
+      await HomeWidgetService.clear();
     }
   }
 
@@ -272,6 +281,7 @@ class LocalLibraryRepository implements LibraryRepository {
       updatedAt: DateTime.now(),
     );
     await saveItems(userId, items);
+    await HomeWidgetService.updateFromItem(items[idx]);
   }
 
   @override
@@ -462,25 +472,27 @@ class LocalLibraryRepository implements LibraryRepository {
           final itemId = _stableId('local_cbr', file.path);
           final existing = existingById[itemId];
           final now = DateTime.now();
-          final item = LibraryItem(
-            id: itemId,
-            userId: userId,
-            sourceId: folder.id,
-            title: titleWithoutExt,
-            collectionId: collection.id,
-            collectionName: collection.name,
-            relativePath: relativePath,
-            type: ItemType.hq,
-            origin: ItemOrigin.local,
-            localPath: cbzFile.path,
-            currentPage: existing?.currentPage ?? 0,
-            totalPages: existing?.totalPages ?? 0,
-            progress: existing?.progress ?? 0.0,
-            isNew: existing?.isNew ?? true,
-            isFavorite: existing?.isFavorite ?? false,
-            status: existing?.status ?? LibraryItemStatus.toRead,
-            createdAt: existing?.createdAt ?? now,
-            updatedAt: existing == null ? now : now,
+          final item = await _metadataService.enrich(
+            LibraryItem(
+              id: itemId,
+              userId: userId,
+              sourceId: folder.id,
+              title: titleWithoutExt,
+              collectionId: collection.id,
+              collectionName: collection.name,
+              relativePath: relativePath,
+              type: ItemType.hq,
+              origin: ItemOrigin.local,
+              localPath: cbzFile.path,
+              currentPage: existing?.currentPage ?? 0,
+              totalPages: existing?.totalPages ?? 0,
+              progress: existing?.progress ?? 0.0,
+              isNew: existing?.isNew ?? true,
+              isFavorite: existing?.isFavorite ?? false,
+              status: existing?.status ?? LibraryItemStatus.toRead,
+              createdAt: existing?.createdAt ?? now,
+              updatedAt: existing == null ? now : now,
+            ),
           );
 
           final key = _duplicateItemKey(item.collectionId, item.title);
@@ -513,13 +525,15 @@ class LocalLibraryRepository implements LibraryRepository {
         relativePath: relativePath,
       );
       final itemId = _stableId('local', file.path);
-      final item = _itemFromImportedFile(
-        userId: userId,
-        file: file,
-        sourceId: folder.id,
-        collectionId: collection.id,
-        collectionName: collection.name,
-        existing: existingById[itemId],
+      final item = await _metadataService.enrich(
+        _itemFromImportedFile(
+          userId: userId,
+          file: file,
+          sourceId: folder.id,
+          collectionId: collection.id,
+          collectionName: collection.name,
+          existing: existingById[itemId],
+        ),
       );
       final key = _duplicateItemKey(item.collectionId, item.title);
       if (existingOutsideFolderKeys.contains(key) ||
@@ -708,25 +722,27 @@ class LocalLibraryRepository implements LibraryRepository {
               final itemId = _stableId('local_cbr', entity.path);
               final existing = existingById[itemId];
               final now = DateTime.now();
-              final item = LibraryItem(
-                id: itemId,
-                userId: userId,
-                sourceId: folder.id,
-                title: titleWithoutExt,
-                collectionId: collection.id,
-                collectionName: collection.name,
-                relativePath: relativePath,
-                type: ItemType.hq,
-                origin: ItemOrigin.local,
-                localPath: cbzFile.path,
-                currentPage: existing?.currentPage ?? 0,
-                totalPages: existing?.totalPages ?? 0,
-                progress: existing?.progress ?? 0.0,
-                isNew: existing?.isNew ?? true,
-                isFavorite: existing?.isFavorite ?? false,
-                status: existing?.status ?? LibraryItemStatus.toRead,
-                createdAt: existing?.createdAt ?? now,
-                updatedAt: existing == null ? now : now,
+              final item = await _metadataService.enrich(
+                LibraryItem(
+                  id: itemId,
+                  userId: userId,
+                  sourceId: folder.id,
+                  title: titleWithoutExt,
+                  collectionId: collection.id,
+                  collectionName: collection.name,
+                  relativePath: relativePath,
+                  type: ItemType.hq,
+                  origin: ItemOrigin.local,
+                  localPath: cbzFile.path,
+                  currentPage: existing?.currentPage ?? 0,
+                  totalPages: existing?.totalPages ?? 0,
+                  progress: existing?.progress ?? 0.0,
+                  isNew: existing?.isNew ?? true,
+                  isFavorite: existing?.isFavorite ?? false,
+                  status: existing?.status ?? LibraryItemStatus.toRead,
+                  createdAt: existing?.createdAt ?? now,
+                  updatedAt: existing == null ? now : now,
+                ),
               );
               final key = _duplicateItemKey(item.collectionId, item.title);
               if (!existingOutsideFolderKeys.contains(key) &&
@@ -764,14 +780,16 @@ class LocalLibraryRepository implements LibraryRepository {
             relativePath: relativePath,
           );
           final itemId = _stableId('local', entity.path);
-          final item = _itemFromFile(
-            userId: userId,
-            file: entity,
-            sourceId: folder.id,
-            collectionId: collection.id,
-            collectionName: collection.name,
-            relativePath: relativePath,
-            existing: existingById[itemId],
+          final item = await _metadataService.enrich(
+            _itemFromFile(
+              userId: userId,
+              file: entity,
+              sourceId: folder.id,
+              collectionId: collection.id,
+              collectionName: collection.name,
+              relativePath: relativePath,
+              existing: existingById[itemId],
+            ),
           );
           final key = _duplicateItemKey(item.collectionId, item.title);
           if (existingOutsideFolderKeys.contains(key) ||
@@ -845,6 +863,7 @@ class LocalLibraryRepository implements LibraryRepository {
         updatedAt: DateTime.now(),
       );
       await saveItems(userId, items);
+      await HomeWidgetService.updateFromItem(items[idx]);
     }
   }
 

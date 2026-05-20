@@ -13,6 +13,7 @@ import '../../../core/utils/formatters.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../library/domain/library_item.dart';
 import '../../library/presentation/library_controller.dart';
+import 'audio_queue_provider.dart';
 
 class AudiobooksPage extends ConsumerStatefulWidget {
   const AudiobooksPage({super.key});
@@ -156,6 +157,21 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
                         child: _AudiobookTile(
                           item: item,
                           onTap: () => context.push('/audio/${item.id}'),
+                          onAddToQueue: (it) {
+                            ref
+                                .read(audioQueueProvider.notifier)
+                                .addToQueue(it.id);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '"${it.title}" adicionado à fila',
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                                backgroundColor: AppColors.audioAccent,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
                         ),
                       );
                     },
@@ -330,11 +346,13 @@ class _AudiobooksPageState extends ConsumerState<AudiobooksPage> {
 class _AudiobookTile extends StatelessWidget {
   final LibraryItem item;
   final VoidCallback onTap;
+  final void Function(LibraryItem item)? onAddToQueue;
   final bool compact;
 
   const _AudiobookTile({
     required this.item,
     required this.onTap,
+    this.onAddToQueue,
     this.compact = false,
   });
 
@@ -351,9 +369,9 @@ class _AudiobookTile extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.all(compact ? 12 : 14),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: Theme.of(context).colorScheme.outline),
         ),
         child: Row(
           children: [
@@ -379,8 +397,8 @@ class _AudiobookTile extends StatelessWidget {
                     item.title,
                     maxLines: compact ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                     ),
@@ -392,8 +410,8 @@ class _AudiobookTile extends StatelessWidget {
                         : _fileLabel(item.localPath),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),
@@ -405,21 +423,40 @@ class _AudiobookTile extends StatelessWidget {
                         value: percent > 0 ? percent : null,
                         minHeight: 5,
                         color: AppColors.audioAccent,
-                        backgroundColor: AppColors.surfaceContainer,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                       ),
                     ),
                   ],
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            Text(
-              duration > 0 ? Formatters.formatDuration(duration) : '',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
+            const SizedBox(width: 8),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  duration > 0 ? Formatters.formatDuration(duration) : '',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (onAddToQueue != null && !compact)
+                  IconButton(
+                    onPressed: () => onAddToQueue!(item),
+                    icon: const Icon(Icons.queue_music_rounded, size: 20),
+                    color: AppColors.audioAccent,
+                    tooltip: 'Adicionar à fila',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                  ),
+              ],
             ),
           ],
         ),

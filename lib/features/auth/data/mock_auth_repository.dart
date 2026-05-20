@@ -37,12 +37,14 @@ class MockAuthRepository implements AuthRepository {
   @override
   Future<AppUser> enterAsGuest() async {
     await _ensureDemoUser();
-    await LocalStorageService.setCurrentUserId(null);
     final userData = LocalStorageService.getUserById(_demoUserId);
     if (userData == null) {
       throw Exception('Nao foi possivel abrir o perfil local.');
     }
-    return AppUser.fromJson(userData);
+    final user = AppUser.fromJson(userData);
+    // Persiste sessão para restaurar ao reabrir o app
+    await LocalStorageService.setCurrentUserId(user.id);
+    return user;
   }
 
   @override
@@ -101,7 +103,12 @@ class MockAuthRepository implements AuthRepository {
 
   @override
   Future<AppUser?> getCurrentUser() async {
-    await LocalStorageService.setCurrentUserId(null);
+    // Tenta restaurar o usuário da sessão salva
+    final savedId = LocalStorageService.getCurrentUserId();
+    if (savedId != null) {
+      final userData = LocalStorageService.getUserById(savedId);
+      if (userData != null) return AppUser.fromJson(userData);
+    }
     return null;
   }
 

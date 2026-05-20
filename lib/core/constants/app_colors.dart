@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
+  // ─── Light theme ────────────────────────────────────────────────
   static const Color background = Color(0xFFFCF9F8);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color surfaceContainer = Color(0xFFF6F3F2);
@@ -12,6 +13,19 @@ class AppColors {
   static const Color textPrimary = Color(0xFF1B1B1C);
   static const Color textSecondary = Color(0xFF504539);
   static const Color border = Color(0xFFD4C4B4);
+
+  // ─── Dark theme ─────────────────────────────────────────────────
+  static const Color darkBackground = Color(0xFF121212);
+  static const Color darkSurface = Color(0xFF1E1E1E);
+  static const Color darkSurfaceContainer = Color(0xFF2A2A2A);
+  static const Color darkPrimary = Color(0xFFD4A45A);
+  static const Color darkPrimaryContainer = Color(0xFF996C2D);
+  static const Color darkOnPrimary = Color(0xFF1B1B1C);
+  static const Color darkTextPrimary = Color(0xFFF2EDE8);
+  static const Color darkTextSecondary = Color(0xFFBAAFA6);
+  static const Color darkBorder = Color(0xFF3A3530);
+
+  // ─── Accent (same in both themes) ──────────────────────────────
   static const Color audioAccent = Color(0xFF4A90E2);
   static const Color comicAccent = Color(0xFF8E44AD);
   static const Color localAccent = Color(0xFF2E7D32);

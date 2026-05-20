@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,11 +7,14 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/storage/local_storage_service.dart';
+import '../../../core/storage/saf_file_resolver.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../library/domain/library_item.dart';
 import '../../library/domain/reading_progress.dart';
 import '../../library/presentation/library_controller.dart';
-import '../../../core/storage/saf_file_resolver.dart';
+import '../domain/bookmark.dart';
+import 'widgets/bookmarks_sheet.dart';
 
 class PdfReaderPage extends ConsumerStatefulWidget {
   final String itemId;
@@ -25,10 +30,12 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
   LibraryItem? _item;
   bool _darkMode = false;
   bool _uiVisible = true;
-  bool _horizontalMode =
-      true; // Horizontal by default for comics, but let's default to true
+  bool _horizontalMode = true;
   int _currentPage = 1;
   int _totalPages = 0;
+  List<Bookmark> _bookmarks = [];
+  DateTime? _sessionStart;
+  Timer? _saveDebounce;
 
   @override
   void initState() {
@@ -38,6 +45,8 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
 
   @override
   void dispose() {
+    _saveDebounce?.cancel();
+    unawaited(_saveProgress(recordSession: true));
     _pageController?.dispose();
     super.dispose();
   }
@@ -71,14 +80,89 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
         _currentPage = item.currentPage > 0 ? item.currentPage : 1;
         _pageController = PageController(initialPage: _currentPage - 1);
       });
+      _loadBookmarks();
+      _sessionStart = DateTime.now();
     }
   }
 
-  Future<void> _saveProgress() async {
+  void _loadBookmarks() {
+    final user = ref.read(authControllerProvider).value;
+    final item = _item;
+    if (user == null || item == null) return;
+    final raw = LocalStorageService.getBookmarks(user.id, item.id);
+    setState(() {
+      _bookmarks = raw.map((j) => Bookmark.fromJson(j)).toList()
+        ..sort((a, b) => (a.page ?? 0).compareTo(b.page ?? 0));
+    });
+  }
+
+  Future<void> _addBookmark() async {
+    final user = ref.read(authControllerProvider).value;
+    final item = _item;
+    if (user == null || item == null) return;
+    final bm = Bookmark.createPdf(
+      itemId: item.id,
+      userId: user.id,
+      page: _currentPage,
+    );
+    await LocalStorageService.saveBookmark(user.id, bm.toJson());
+    _loadBookmarks();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Marcador adicionado!'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteBookmark(Bookmark bm) async {
+    final user = ref.read(authControllerProvider).value;
+    final item = _item;
+    if (user == null || item == null) return;
+    await LocalStorageService.deleteBookmark(user.id, item.id, bm.id);
+    _loadBookmarks();
+  }
+
+  void _showBookmarks() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => BookmarksSheet(
+        bookmarks: _bookmarks,
+        onTap: (bm) {
+          if (bm.page != null) {
+            _pageController?.jumpToPage(bm.page! - 1);
+            setState(() => _currentPage = bm.page!);
+          }
+        },
+        onDelete: _deleteBookmark,
+      ),
+    );
+  }
+
+  Future<void> _saveProgress({bool recordSession = false}) async {
     final item = _item;
     if (item == null) return;
     final user = ref.read(authControllerProvider).value;
     if (user == null) return;
+
+    // Save reading session duration
+    if (recordSession && _sessionStart != null) {
+      final dur = DateTime.now().difference(_sessionStart!).inSeconds;
+      if (dur > 5) {
+        await LocalStorageService.saveReadingSession(
+          userId: user.id,
+          itemId: item.id,
+          durationSeconds: dur,
+        );
+      }
+      _sessionStart = null;
+    }
 
     final total = _totalPages > 0 ? _totalPages : 1;
     final percent = (_currentPage / total).clamp(0.0, 1.0);
@@ -102,7 +186,7 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
 
     return PopScope(
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) await _saveProgress();
+        if (didPop) await _saveProgress(recordSession: true);
       },
       child: Scaffold(
         backgroundColor: _darkMode ? Colors.black : AppColors.background,
@@ -175,7 +259,10 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
       scrollDirection: _horizontalMode ? Axis.horizontal : Axis.vertical,
       itemCount: document.pages.length,
       onPageChanged: (i) {
-        if (mounted) setState(() => _currentPage = i + 1);
+        if (mounted) {
+          setState(() => _currentPage = i + 1);
+          _scheduleSaveProgress();
+        }
       },
       itemBuilder: (context, index) {
         return InteractiveViewer(
@@ -214,7 +301,7 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
               children: [
                 IconButton(
                   onPressed: () async {
-                    await _saveProgress();
+                    await _saveProgress(recordSession: true);
                     if (!context.mounted) return;
                     context.pop();
                   },
@@ -279,6 +366,44 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
                     color: Colors.white,
                   ),
                   tooltip: 'Modo noturno',
+                ),
+                IconButton(
+                  onPressed: _addBookmark,
+                  icon: const Icon(
+                    Icons.bookmark_add_rounded,
+                    color: Colors.white,
+                  ),
+                  tooltip: 'Adicionar marcador',
+                ),
+                IconButton(
+                  onPressed: _showBookmarks,
+                  icon: Stack(
+                    children: [
+                      const Icon(Icons.bookmarks_rounded, color: Colors.white),
+                      if (_bookmarks.isNotEmpty)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  tooltip: 'Ver marcadores (${_bookmarks.length})',
+                ),
+                IconButton(
+                  onPressed: _listenFromCurrentPage,
+                  icon: const Icon(
+                    Icons.headphones_rounded,
+                    color: Colors.white,
+                  ),
+                  tooltip: 'Ouvir desta pagina',
                 ),
                 IconButton(
                   onPressed: () =>
@@ -355,5 +480,18 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
         ],
       ),
     );
+  }
+
+  void _scheduleSaveProgress() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 700), () {
+      unawaited(_saveProgress());
+    });
+  }
+
+  Future<void> _listenFromCurrentPage() async {
+    await _saveProgress(recordSession: true);
+    if (!mounted) return;
+    context.push('/listen/${widget.itemId}');
   }
 }

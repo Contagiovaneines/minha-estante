@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pdfrx/pdfrx.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/storage/local_storage_service.dart';
+import '../../../core/storage/saf_file_resolver.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../library/domain/library_item.dart';
+import '../../library/domain/reading_progress.dart';
 import '../../library/presentation/library_controller.dart';
 import '../domain/book_text_extractor.dart';
 import '../domain/book_tts_progress.dart';
@@ -33,10 +37,13 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
 
   final _tts = FlutterTts();
   final _extractor = BookTextExtractor();
+  final _uuid = const Uuid();
 
   LibraryItem? _item;
   BookTextExtractionResult? _extraction;
   List<BookTextSegment> _segments = const [];
+  List<_TtsVoice> _voices = const [];
+  _TtsVoice? _selectedVoice;
   int _currentIndex = 0;
   bool _isLoading = true;
   bool _isPlaying = false;
@@ -68,6 +75,18 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
         _errorMessage = 'Erro no TTS: $message';
       });
     });
+    unawaited(_loadVoices());
+  }
+
+  Future<void> _loadVoices() async {
+    try {
+      final rawVoices = await _tts.getVoices;
+      final voices = _parseVoices(rawVoices);
+      if (!mounted || voices.isEmpty) return;
+      setState(() => _voices = voices);
+    } catch (_) {
+      // Alguns engines TTS nao expoem a lista de vozes.
+    }
   }
 
   Future<void> _load() async {
@@ -87,22 +106,36 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
     }
 
     try {
+      var playableItem = item;
+      if (item.type == ItemType.pdf && item.localPath != null) {
+        final resolvedFile = await SafFileResolver.resolveForProcessing(
+          item.localPath!,
+        );
+        playableItem = item.copyWith(localPath: resolvedFile.path);
+      }
+
       await ref
           .read(libraryControllerProvider.notifier)
-          .markItemOpened(item.id);
-      final extraction = await _extractor.extract(item);
-      final saved = _loadSavedProgress(item.id);
+          .markItemOpened(playableItem.id);
+      final extraction = await _extractor.extract(playableItem);
+      final saved = _loadSavedProgress(playableItem.id);
+      final readingProgress = await ref
+          .read(libraryControllerProvider.notifier)
+          .getProgress(playableItem.id);
+      final selectedVoice = _voiceFromSaved(saved);
 
       if (!mounted) return;
       setState(() {
-        _item = item;
+        _item = playableItem;
         _extraction = extraction;
         _segments = extraction.segments;
-        _currentIndex = _safeSegmentIndex(
-          saved?.segmentIndex ?? 0,
-          extraction.segments.length,
+        _currentIndex = _initialSegmentIndex(
+          saved: saved,
+          readingProgress: readingProgress,
+          segments: extraction.segments,
         );
         _language = saved?.language ?? _language;
+        _selectedVoice = selectedVoice;
         _speechRate = _normalizeSpeechRate(saved?.speechRate ?? _speechRate);
         _isLoading = false;
         _errorMessage = null;
@@ -143,6 +176,14 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
       await _tts.setLanguage(_language);
     } catch (_) {
       // Alguns aparelhos nao tem todas as vozes instaladas.
+    }
+    final voice = _selectedVoice;
+    if (voice != null) {
+      try {
+        await _tts.setVoice({'name': voice.name, 'locale': voice.locale});
+      } catch (_) {
+        // Se a voz nao estiver disponivel, o sistema usa a padrao do idioma.
+      }
     }
     try {
       await _tts.setQueueMode(0);
@@ -231,6 +272,7 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
     setState(() {
       _isPlaying = false;
       _language = language;
+      _selectedVoice = _firstVoiceForLanguage(language);
     });
     await _applyTtsSettings();
     await _saveProgress();
@@ -245,6 +287,24 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
     setState(() {
       _isPlaying = false;
       _speechRate = value;
+    });
+    await _applyTtsSettings();
+    await _saveProgress();
+    if (wasPlaying) unawaited(_play());
+  }
+
+  Future<void> _changeVoice(String voiceId) async {
+    final voice = _voiceById(voiceId);
+    if (voice == null) return;
+
+    final wasPlaying = _isPlaying;
+    _playToken++;
+    await _tts.stop();
+    if (!mounted) return;
+    setState(() {
+      _isPlaying = false;
+      _selectedVoice = voice;
+      _language = voice.locale;
     });
     await _applyTtsSettings();
     await _saveProgress();
@@ -269,10 +329,35 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
       totalSegments: _segments.length,
       percent: percent,
       language: _language,
+      voiceName: _selectedVoice?.name,
+      voiceLocale: _selectedVoice?.locale,
       speechRate: _speechRate,
       updatedAt: DateTime.now(),
     );
     await LocalStorageService.saveTtsProgress(user.id, progress.toJson());
+
+    final segment = _segments[segmentIndex];
+    final totalPages = _totalPagesForProgress(item);
+    final page = segment.pageNumber ?? item.currentPage;
+    final syncedPercent = item.type == ItemType.pdf && page > 0
+        ? (page / totalPages).clamp(0.0, 1.0).toDouble()
+        : percent;
+
+    await ref
+        .read(libraryControllerProvider.notifier)
+        .saveProgress(
+          ReadingProgress(
+            id: _uuid.v4(),
+            userId: user.id,
+            itemId: item.id,
+            currentPage: item.type == ItemType.pdf
+                ? page.clamp(1, totalPages).toInt()
+                : 0,
+            totalPages: item.type == ItemType.pdf ? totalPages : 0,
+            percent: syncedPercent,
+            updatedAt: DateTime.now(),
+          ),
+        );
   }
 
   @override
@@ -280,7 +365,7 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
     final item = _item;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
@@ -308,6 +393,8 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
   }
 
   Widget _buildMessage(String message) {
+    final colors = Theme.of(context).colorScheme;
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -323,8 +410,8 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
                 fontSize: 15,
                 height: 1.45,
               ),
@@ -339,6 +426,7 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
     final item = _item!;
     final segment = _segments[_currentIndex];
     final percent = ((_currentIndex + 1) / _segments.length).clamp(0.0, 1.0);
+    final colors = Theme.of(context).colorScheme;
 
     return CustomScrollView(
       slivers: [
@@ -350,8 +438,8 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
               children: [
                 Text(
                   item.title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: colors.onSurface,
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
                   ),
@@ -359,8 +447,8 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
                 const SizedBox(height: 8),
                 Text(
                   '${_extraction?.sourceLabel ?? 'Texto'} - trecho ${_currentIndex + 1} de ${_segments.length}',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
@@ -370,10 +458,16 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
                   value: percent,
                   minHeight: 7,
                   borderRadius: BorderRadius.circular(999),
-                  backgroundColor: AppColors.border.withValues(alpha: 0.45),
+                  backgroundColor: colors.outlineVariant.withValues(
+                    alpha: 0.55,
+                  ),
                   color: AppColors.primary,
                 ),
                 const SizedBox(height: 24),
+                if (item.type == ItemType.pdf) ...[
+                  _buildPdfPreview(item, segment),
+                  const SizedBox(height: 22),
+                ],
                 _buildControls(),
                 const SizedBox(height: 22),
                 _buildSettings(),
@@ -428,67 +522,164 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
   }
 
   Widget _buildSettings() {
-    return Row(
+    final voices = _voicesForLanguage;
+    final selectedVoiceId =
+        voices.any((voice) => voice.id == _selectedVoice?.id)
+        ? _selectedVoice?.id
+        : null;
+
+    return Column(
       children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            initialValue: _language,
-            decoration: const InputDecoration(
-              labelText: 'Voz',
-              prefixIcon: Icon(Icons.language_rounded),
-            ),
-            items: [
-              for (final language in _languages)
-                DropdownMenuItem(
-                  value: language.code,
-                  child: Text(language.label),
-                ),
-            ],
-            onChanged: (value) {
-              if (value != null) unawaited(_changeLanguage(value));
-            },
+        DropdownButtonFormField<String>(
+          initialValue: _language,
+          decoration: const InputDecoration(
+            labelText: 'Idioma',
+            prefixIcon: Icon(Icons.language_rounded),
           ),
+          items: [
+            for (final language in _languages)
+              DropdownMenuItem(
+                value: language.code,
+                child: Text(language.label),
+              ),
+          ],
+          onChanged: (value) {
+            if (value != null) unawaited(_changeLanguage(value));
+          },
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DropdownButtonFormField<double>(
-            initialValue: _speechRate,
-            decoration: const InputDecoration(
-              labelText: 'Velocidade',
-              prefixIcon: Icon(Icons.speed_rounded),
-            ),
-            items: [
-              for (final rate in _speechRates)
-                DropdownMenuItem(
-                  value: rate,
-                  child: Text(_speechRateLabel(rate)),
-                ),
-            ],
-            onChanged: (value) {
-              if (value != null) unawaited(_changeSpeechRate(value));
-            },
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: selectedVoiceId,
+          decoration: const InputDecoration(
+            labelText: 'Voz do aparelho',
+            prefixIcon: Icon(Icons.record_voice_over_rounded),
           ),
+          hint: const Text('Voz padrao do sistema'),
+          items: [
+            for (final voice in voices)
+              DropdownMenuItem(
+                value: voice.id,
+                child: Text(voice.label, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: voices.isEmpty
+              ? null
+              : (value) {
+                  if (value != null) unawaited(_changeVoice(value));
+                },
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<double>(
+          initialValue: _speechRate,
+          decoration: const InputDecoration(
+            labelText: 'Velocidade',
+            prefixIcon: Icon(Icons.speed_rounded),
+          ),
+          items: [
+            for (final rate in _speechRates)
+              DropdownMenuItem(
+                value: rate,
+                child: Text(_speechRateLabel(rate)),
+              ),
+          ],
+          onChanged: (value) {
+            if (value != null) unawaited(_changeSpeechRate(value));
+          },
         ),
       ],
     );
   }
 
+  Widget _buildPdfPreview(LibraryItem item, BookTextSegment segment) {
+    final pageNumber = segment.pageNumber ?? item.currentPage.clamp(1, 999999);
+    final localPath = item.localPath?.trim();
+    final remoteUrl = item.remoteUrl?.trim();
+
+    final Widget preview;
+    if (localPath != null && localPath.isNotEmpty) {
+      preview = PdfDocumentViewBuilder.file(
+        localPath,
+        loadingBuilder: (_) => const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+        errorBuilder: (_, _, _) => _buildPdfPreviewError(),
+        builder: (context, document) =>
+            _buildPdfPreviewPage(document, pageNumber),
+      );
+    } else if (remoteUrl != null && remoteUrl.isNotEmpty) {
+      preview = PdfDocumentViewBuilder.uri(
+        Uri.parse(remoteUrl),
+        loadingBuilder: (_) => const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+        errorBuilder: (_, _, _) => _buildPdfPreviewError(),
+        builder: (context, document) =>
+            _buildPdfPreviewPage(document, pageNumber),
+      );
+    } else {
+      preview = _buildPdfPreviewError();
+    }
+
+    return SizedBox(
+      height: 430,
+      child: ClipRRect(borderRadius: BorderRadius.circular(18), child: preview),
+    );
+  }
+
+  Widget _buildPdfPreviewPage(PdfDocument? document, int pageNumber) {
+    if (document == null || document.pages.isEmpty) {
+      return _buildPdfPreviewError();
+    }
+
+    final safePage = pageNumber.clamp(1, document.pages.length);
+    return ColoredBox(
+      color: Colors.black,
+      child: InteractiveViewer(
+        minScale: 0.8,
+        maxScale: 4,
+        child: Center(
+          child: PdfPageView(
+            key: ValueKey('tts_pdf_page_$safePage'),
+            document: document,
+            pageNumber: safePage,
+            backgroundColor: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPdfPreviewError() {
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(20),
+      child: Text(
+        'Nao foi possivel mostrar a pagina do PDF.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
+    );
+  }
+
   Widget _buildSegmentText(BookTextSegment segment) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             segment.title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: colors.onSurface,
               fontSize: 15,
               fontWeight: FontWeight.w800,
             ),
@@ -496,8 +687,8 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
           const SizedBox(height: 12),
           Text(
             segment.text,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
               fontSize: 16,
               height: 1.55,
             ),
@@ -510,6 +701,51 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
   int _safeSegmentIndex(int index, int total) {
     if (total <= 0) return 0;
     return index.clamp(0, total - 1);
+  }
+
+  int _initialSegmentIndex({
+    required BookTtsProgress? saved,
+    required ReadingProgress? readingProgress,
+    required List<BookTextSegment> segments,
+  }) {
+    if (segments.isEmpty) return 0;
+
+    final shouldUseReadingProgress =
+        readingProgress != null &&
+        (saved == null || readingProgress.updatedAt.isAfter(saved.updatedAt));
+
+    if (shouldUseReadingProgress) {
+      final page = readingProgress.currentPage;
+      if (page > 0) {
+        final exactIndex = segments.indexWhere(
+          (segment) => segment.pageNumber == page,
+        );
+        if (exactIndex >= 0) return exactIndex;
+
+        final nextIndex = segments.indexWhere(
+          (segment) => (segment.pageNumber ?? 0) > page,
+        );
+        if (nextIndex > 0) return nextIndex - 1;
+      }
+
+      if (readingProgress.percent > 0) {
+        return _safeSegmentIndex(
+          (readingProgress.percent * segments.length).floor(),
+          segments.length,
+        );
+      }
+    }
+
+    return _safeSegmentIndex(saved?.segmentIndex ?? 0, segments.length);
+  }
+
+  int _totalPagesForProgress(LibraryItem item) {
+    if (item.totalPages > 0) return item.totalPages;
+    final pages = _segments
+        .map((segment) => segment.pageNumber ?? 0)
+        .where((page) => page > 0);
+    if (pages.isEmpty) return 1;
+    return pages.reduce((a, b) => a > b ? a : b);
   }
 
   double _normalizeSpeechRate(double value) {
@@ -525,6 +761,65 @@ class _TtsReaderPageState extends ConsumerState<TtsReaderPage> {
     if (rate == 0.55) return '1.2x';
     return '1.4x';
   }
+
+  List<_TtsVoice> get _voicesForLanguage {
+    final filtered = _voices
+        .where(
+          (voice) =>
+              voice.locale.toLowerCase().startsWith(_language.toLowerCase()),
+        )
+        .toList();
+    return filtered.isEmpty ? _voices : filtered;
+  }
+
+  _TtsVoice? _firstVoiceForLanguage(String language) {
+    for (final voice in _voices) {
+      if (voice.locale.toLowerCase().startsWith(language.toLowerCase())) {
+        return voice;
+      }
+    }
+    return null;
+  }
+
+  _TtsVoice? _voiceById(String voiceId) {
+    for (final voice in _voices) {
+      if (voice.id == voiceId) return voice;
+    }
+    return null;
+  }
+
+  _TtsVoice? _voiceFromSaved(BookTtsProgress? saved) {
+    if (saved?.voiceName == null || saved?.voiceLocale == null) return null;
+    for (final voice in _voices) {
+      if (voice.name == saved!.voiceName && voice.locale == saved.voiceLocale) {
+        return voice;
+      }
+    }
+    return _TtsVoice(name: saved!.voiceName!, locale: saved.voiceLocale!);
+  }
+
+  List<_TtsVoice> _parseVoices(dynamic rawVoices) {
+    if (rawVoices is! List) return const [];
+    final voices = <_TtsVoice>[];
+    final seen = <String>{};
+
+    for (final raw in rawVoices) {
+      String? name;
+      String? locale;
+      if (raw is Map) {
+        name = raw['name']?.toString();
+        locale = (raw['locale'] ?? raw['language'])?.toString();
+      }
+      if (name == null || name.trim().isEmpty) continue;
+      locale = (locale == null || locale.trim().isEmpty) ? _language : locale;
+
+      final voice = _TtsVoice(name: name.trim(), locale: locale.trim());
+      if (seen.add(voice.id)) voices.add(voice);
+    }
+
+    voices.sort((a, b) => a.label.compareTo(b.label));
+    return voices;
+  }
 }
 
 class _TtsLanguage {
@@ -532,4 +827,15 @@ class _TtsLanguage {
   final String code;
 
   const _TtsLanguage(this.label, this.code);
+}
+
+class _TtsVoice {
+  final String name;
+  final String locale;
+
+  const _TtsVoice({required this.name, required this.locale});
+
+  String get id => '$locale::$name';
+
+  String get label => '${name.replaceAll('_', ' ')} ($locale)';
 }
